@@ -19,7 +19,7 @@ A prototype electronic voting system combining **Blockchain**, **Fully Homomorph
 **Python 3.10 or later is required.** Tested on **Python 3.11**.
 
 ```bash
-python3 --version   # must be >= 3.10
+python3 --version (3.10)
 ```
 
 ### Hardware
@@ -87,12 +87,7 @@ scripts/
 
 diagrams/
 ├── fig1_system_architecture.py/png    # Overall system architecture
-├── fig2_registration_flow.py/png      # Voter registration sequence
-├── fig3_auth_voting_sequence.py/png   # Authentication & voting flow
-├── fig4_crypto_stack.py/png           # Cryptographic stack overview
-├── fig5_blockchain_structure.py/png   # Custom blockchain layout
-├── fig6_election_lifecycle.py/png     # Full election lifecycle
-└── fig7_biometric_pipeline.py/png     # Biometric processing pipeline
+
 
 paper/
 ├── benchmarks.md            # Per-operation latency & scalability data (Section 6)

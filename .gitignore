@@ -1,0 +1,32 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+
+ claude/post-quantum-evoting-system-W2QQV
+# Test snapshot PNGs (auto-generated, not source)
+tests/snapshots/
+=======
+# Test snapshots — generated at runtime, deleted after session
+tests/snapshots/*.png
+ main

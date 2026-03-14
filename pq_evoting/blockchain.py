@@ -1,6 +1,6 @@
 """
-Post-Quantum Secure Voting Blockchain
-======================================
+Post-Quantum Secure Voting Blockchain (Simulation Proto)
+
 An immutable ledger for recording encrypted votes with the following
 security properties:
 
@@ -41,10 +41,9 @@ from typing import List, Optional
 from .pq_crypto import pq_sign, pq_verify, sha3_256
 
 
-# ---------------------------------------------------------------------------
+# --------
 # Data classes
-# ---------------------------------------------------------------------------
-
+# --------
 @dataclass
 class VoteRecord:
     """
@@ -90,15 +89,15 @@ class Block:
     A block in the post-quantum voting blockchain.
 
     Fields set at creation time
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~
     index, timestamp, prev_hash, votes, difficulty
 
     Fields computed during :meth:`mine`
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~
     merkle_root, nonce, hash
 
     Fields set after mining via :meth:`sign`
-    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    ~~~
     authority_signature
     """
     index:               int
@@ -113,10 +112,9 @@ class Block:
     hash:                str = ""
     authority_signature: str = ""
 
-    # ------------------------------------------------------------------
+    # ---
     # Merkle tree
-    # ------------------------------------------------------------------
-
+    # ----
     def compute_merkle_root(self) -> str:
         """SHA3-256 Merkle root of all vote records.
 

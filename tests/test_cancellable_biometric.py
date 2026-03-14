@@ -5,26 +5,7 @@ All tests use synthetic fingerprints so no SOCOFing dataset is required.
 A single PQKeyPair is generated once per module (slow KEM keygen) and shared
 across tests via a session-scoped fixture.
 
-Abbreviations used in this file
---------------------------------
-BMP    - Bitmap  (image file format for fingerprint images)
-BioHash- Biometric Hash  (binarised projection of a biometric feature vector)
-CB     - Cancellable Biometric
-CLAHE  - Contrast Limited Adaptive Histogram Equalization
-DSA    - Digital Signature Algorithm
-FAR    - False Acceptance Rate  (fraction of impostors incorrectly accepted)
-FRR    - False Rejection Rate  (fraction of genuine users incorrectly rejected)
-HOG    - Histogram of Oriented Gradients  (image descriptor)
-KEM    - Key Encapsulation Mechanism  (asymmetric key-wrapping primitive)
-ML-DSA - Module-Lattice Digital Signature Algorithm  (NIST FIPS 204)
-ML-KEM - Module-Lattice Key Encapsulation Mechanism  (NIST FIPS 203)
-NIST   - National Institute of Standards and Technology
-ORB    - Oriented FAST and Rotated BRIEF  (keypoint descriptor, legacy)
-PQ     - Post-Quantum  (secure against quantum-computer attacks)
-QR     - QR decomposition  (factorises matrix into orthonormal Q and upper-triangular R)
-SHA3   - Secure Hash Algorithm 3  (NIST FIPS 202 hash family)
-SHAKE  - Secure Hash Algorithm with variable-length output  (NIST FIPS 202 XOF)
-SOCOFing - Sokoto Coventry Fingerprint dataset  (600 subjects × 10 fingers)
+
 """
 
 import hashlib

@@ -1,10 +1,6 @@
 """
 benchmark.py — Per-operation and end-to-end latency for the PQ e-voting system.
 
-Usage:
-    python benchmark.py
-
-Outputs a performance table suitable for Section 6 of the paper.
 """
 
 import time
@@ -38,9 +34,9 @@ def main():
     print("  POST-QUANTUM E-VOTING SYSTEM — BENCHMARKS")
     print("=" * 60)
 
-    # ----------------------------------------------------------------
+    # -----
     # Setup (not timed)
-    # ----------------------------------------------------------------
+    # -----
     print("\nInitialising components...")
     bio  = CancellableBiometric()
     zkp  = LatticeZKP(num_candidates=N_CANDIDATES)
@@ -50,13 +46,13 @@ def main():
     msg   = b"vote-commitment-payload"
 
     print("  FHE authority init (slow — generates BFV context)...")
-    auth  = FHEAuthority(num_candidates=N_CANDIDATES)
+    auth  =FHEAuthority(num_candidates=N_CANDIDATES)
     voter = FHEVoter(auth.public_context_bytes(), num_candidates=N_CANDIDATES)
     print("  Done.\n")
 
-    # ----------------------------------------------------------------
+    # -----
     # 1. Per-operation latency
-    # ----------------------------------------------------------------
+    # -----
     print("Per-operation latency")
     print("-" * 60)
 
@@ -70,9 +66,9 @@ def main():
     zkpg_ms, pf  = bench("ZKP generate",                    lambda: zkp.prove_vote_range(1, VOTER_ID, ELECTION_ID), runs=10)
     zkpv_ms, _   = bench("ZKP verify",                      lambda: zkp.verify_vote_proof(pf, VOTER_ID, ELECTION_ID), runs=10)
 
-    # ----------------------------------------------------------------
+    # -----
     # 2. End-to-end phase totals
-    # ----------------------------------------------------------------
+    # -----
     enroll_ms = bio_ms + kgen_ms + enc_ms
     auth_ms   = bio_ms + dec_ms
     cast_ms   = fhe_ms + zkpg_ms + sign_ms
@@ -84,9 +80,9 @@ def main():
     print(f"  {'Authentication':<35} {auth_ms:8.1f} ms   (BioHash + KEM-dec)")
     print(f"  {'Vote casting':<35} {cast_ms:8.1f} ms   (FHE-enc + ZKP-gen + DSA-sign)")
 
-    # ----------------------------------------------------------------
+    # -----
     # 3. Scalability (estimated from shard model)
-    # ----------------------------------------------------------------
+    # -----
     SHARD_SIZE = 800
     print()
     print("Scalability estimates (ShardedFHETally, shard=800 votes)")
@@ -96,7 +92,7 @@ def main():
     for n in [100, 1_000, 5_000, 10_000]:
         shards     = max(1, (n + SHARD_SIZE - 1) // SHARD_SIZE)
         enroll_s   = n * enroll_ms / 1000
-        tally_s    = shards * 1.0          # ~1 s per shard (rough estimate)
+        tally_s    = shards * 1.0          # ~1 s per shard (rough estimate of it)
         print(f"  {n:<15,} {enroll_s:<20.0f} {shards:<10} ~{tally_s:.0f} s")
 
     print()

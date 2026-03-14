@@ -1,41 +1,11 @@
 """
 Real-fingerprint tests for CancellableBiometric using the SOCOFing dataset.
 
-Requires: SOCOFing/Real/ directory with BMP fingerprint images.
-Skipped automatically if the dataset is not present.
+Requires: uses SOCOFing/Real/ directory with BMP fingerprint images.
 
 Run:
     pytest tests/test_cancellable_biometric_real.py -v
 
-Abbreviations used in this file
---------------------------------
-AFIS   - Automated Fingerprint Identification System
-AES    - Advanced Encryption Standard
-AUC    - Area Under the (ROC) Curve
-BioHash- Biometric Hash  (binarised projection of a biometric feature vector)
-BMP    - Bitmap  (image file format used by SOCOFing)
-CB     - Cancellable Biometric
-CLAHE  - Contrast Limited Adaptive Histogram Equalization
-DET    - Detection Error Tradeoff  (FAR vs FRR curve)
-EER    - Equal Error Rate  (point where FAR == FRR)
-FAR    - False Acceptance Rate  (fraction of impostors incorrectly accepted)
-FIPS   - Federal Information Processing Standards  (NIST standard series)
-FRR    - False Rejection Rate  (fraction of genuine users incorrectly rejected)
-GCM    - Galois/Counter Mode  (authenticated encryption mode for AES)
-HOG    - Histogram of Oriented Gradients  (image descriptor used for feature extraction)
-KEM    - Key Encapsulation Mechanism  (asymmetric key-wrapping primitive)
-ML-DSA - Module-Lattice Digital Signature Algorithm  (NIST FIPS 204)
-ML-KEM - Module-Lattice Key Encapsulation Mechanism  (NIST FIPS 203)
-NIST   - National Institute of Standards and Technology
-ORB    - Oriented FAST and Rotated BRIEF  (keypoint descriptor, legacy)
-PQ     - Post-Quantum  (secure against quantum-computer attacks)
-QR     - QR decomposition  (factorises matrix into orthonormal Q and upper-triangular R)
-ROC    - Receiver Operating Characteristic  (TPR vs FPR curve)
-SHA3   - Secure Hash Algorithm 3  (NIST FIPS 202 hash family)
-SHAKE  - Secure Hash Algorithm with variable-length Key Expansion  (NIST FIPS 202 XOF)
-SOCOFing - Sokoto Coventry Fingerprint dataset  (600 subjects × 10 fingers × 1 BMP each)
-TPR    - True Positive Rate  (fraction of genuine users correctly accepted)
-XOF    - Extendable Output Function  (variable-length hash, used in SHAKE)
 """
 
 import hashlib

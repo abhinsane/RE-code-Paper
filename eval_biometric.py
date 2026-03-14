@@ -32,10 +32,9 @@ from pq_evoting.cancellable_biometric import (
 )
 
 
-# ---------------------------------------------------------------------------
+# ----
 # Helpers
-# ---------------------------------------------------------------------------
-
+# ----
 def make_token(subject_id: str) -> bytes:
     """Deterministic per-subject token (simulates a hashed PIN)."""
     return hashlib.sha3_256(f"eval_token_{subject_id}".encode()).digest()
@@ -74,9 +73,9 @@ def far_at_frr_target(thresholds, far, frr, target_frr):
     return float(far[valid[0]])
 
 
-# ---------------------------------------------------------------------------
+# ----
 # Synthetic data generator
-# ---------------------------------------------------------------------------
+# ----
 
 def load_socofing_with_altered(
     dataset_path: str,
@@ -164,10 +163,9 @@ def load_socofing_with_altered(
     return real_by_finger, altered_by_finger, finger_to_subject
 
 
-# ---------------------------------------------------------------------------
+# ------
 # Main evaluation
-# ---------------------------------------------------------------------------
-
+# ------
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Evaluate biometric FAR/FRR/EER for the BioHashing pipeline"
@@ -186,10 +184,12 @@ def main() -> None:
 
     bio = CancellableBiometric()
 
-    # ------------------------------------------------------------------
+    # ------
     # 1. Load fingerprint data
-    # ------------------------------------------------------------------
+    # -------
+   
     print("Loading fingerprint data ...")
+   
     # Tracks whether we're in Real+Altered mode (proper genuine pairs) or
     # legacy mode (multiple images per subject, cross-finger genuine pairs).
     use_altered_mode = False
@@ -220,9 +220,9 @@ def main() -> None:
         subjects = {k: v for k, v in subjects.items() if len(v) >= 2}
         print(f"  {len(subjects)} subjects with >=2 impressions available")
 
-    # ------------------------------------------------------------------
+    # -----
     # 2. Pre-compute features for every image once (cached)
-    # ------------------------------------------------------------------
+    # -----
     if use_altered_mode:
         all_images = list(real_by_finger.values())
         for paths in altered_by_finger.values():
@@ -289,11 +289,11 @@ def main() -> None:
                     get_biohash(p, token)
     print(f"  {len(projection_cache)} projection matrices, {len(biohash_cache)} BioHashes cached")
 
-    # ------------------------------------------------------------------
+    # -------
     # 3. Generate genuine pairs
     #    Altered mode : Real[finger] vs Altered[finger]  (same finger, same subject)
     #    Legacy mode  : different images of same subject (cross-finger, less ideal)
-    # ------------------------------------------------------------------
+    # -------
     print("\nBuilding genuine pairs ...")
     genuine_scores: list[float] = []
 
@@ -356,10 +356,9 @@ def main() -> None:
 
     print(f"  {len(impostor_scores)} impostor pairs")
 
-    # ------------------------------------------------------------------
+    # --------
     # 4. Sweep thresholds → FAR / FRR
-    # ------------------------------------------------------------------
-    print("\nSweeping thresholds …")
+    # -------
     thresholds = np.arange(0.50, 1.001, 0.005)
     far, frr = compute_far_frr(genuine_scores, impostor_scores, thresholds)
 
@@ -369,9 +368,9 @@ def main() -> None:
     g_arr = np.array(genuine_scores)
     i_arr = np.array(impostor_scores)
 
-    # ------------------------------------------------------------------
+    # -------
     # 5. Format and print results
-    # ------------------------------------------------------------------
+    # -------
     sep = "=" * 62
     lines = [
         sep,
@@ -427,9 +426,9 @@ def main() -> None:
         fh.write(output + "\n")
     print(f"\nResults saved -> {args.output}")
 
-    # ------------------------------------------------------------------
+    # ------------
     # 6. Optional plots (requires matplotlib)
-    # ------------------------------------------------------------------
+    # -------
     if args.plot:
         try:
             import matplotlib

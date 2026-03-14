@@ -1,16 +1,16 @@
 """
 Ethereum Bridge for PQ E-Voting
-================================
+==========
 Provides ``EthBridge`` — a Web3-compatible interface that anchors voting
 evidence on an EVM blockchain.
 
 Backend selection
------------------
-* If  ``ETH_RPC_URL``  +  ``ETH_CONTRACT_ADDR``  are set in the environment
+-----
+* If ''`ETH_RPC_URL''  +  ''ETH_CONTRACT_ADDR''  are set in the environment
   the bridge connects to an **external** Ethereum node (Ganache / Hardhat /
-  testnet / mainnet) and calls the deployed ``VotingLedger`` contract.
+  testnet / mainnet) and calls the deployed ''VotingLedger'' contract.
 
-* Otherwise an **in-memory** ``eth-tester`` / ``py-evm`` node is started and
+* Otherwise an **in-memory** ''eth-tester'' / ''py-ev'' node is started and
   the contract logic is emulated as a Python class that generates real
   Ethereum-style transaction hashes and event receipts.
 
@@ -20,7 +20,7 @@ Backend selection
 
 Pre-compiled ABI
 ----------------
-The ABI below matches ``contracts/VotingLedger.sol`` exactly.
+The ABI below matches "contracts/VotingLedger.sol" exactly.
 To compile the contract yourself::
 
     npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox

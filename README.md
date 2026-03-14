@@ -375,7 +375,7 @@ Run `python "test result/benchmark.py"` to reproduce on your machine.
 | 5,000 | ~37,545 | 2 | ~2 s |
 | 10,000 | ~75,090 | 4 | ~4 s |
 
-> **Note:** BioHash dominates enrollment/auth (pure-Python Gabor+HOG). All PQ crypto primitives are sub-2 ms. In a production deployment, hardware-accelerated biometric processing reduces BioHash to ~20–50 ms.
+> **Note:** BioHash dominates enrollment/auth (pure-Python Gabor+HOG). All PQ crypto primitives are sub-2 ms. In aacutal scenario deployment, hardware-accelerated biometric processing can be reduce BioHash to ~20–50 ms (possibility).
 
 ---
 

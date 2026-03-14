@@ -341,6 +341,46 @@ class CancellableBiometric:
 # Dataset loader
 # ---------------------------------------------------------------------------
 
+def create_synthetic_fingerprint(output_path: str, seed: int = 0, size: int = 256) -> None:
+    """
+    Generate a synthetic fingerprint-like image and save it to *output_path*.
+
+    Creates a warped sinusoidal ridge pattern with additive noise to simulate
+    the ridge structure of a real fingerprint.  Intended for unit tests that
+    do not have access to the SOCOFing dataset.
+
+    Parameters
+    ----------
+    output_path : Destination file path (BMP or PNG; extension determines format).
+    seed        : Random seed for reproducible generation.
+    size        : Width and height of the square output image in pixels.
+    """
+    rng = np.random.default_rng(seed)
+
+    x = np.linspace(0, 4 * np.pi, size)
+    y = np.linspace(0, 4 * np.pi, size)
+    xx, yy = np.meshgrid(x, y)
+
+    # Random ridge orientation and frequency for this subject
+    angle = rng.uniform(0, np.pi)
+    freq  = rng.uniform(0.8, 1.2)
+
+    # Warp field to introduce realistic ridge curvature
+    warp_x = 0.3 * np.sin(yy * 0.5 + rng.uniform(0, np.pi))
+    warp_y = 0.3 * np.cos(xx * 0.5 + rng.uniform(0, np.pi))
+
+    ridges = np.sin(freq * (xx * np.cos(angle) + yy * np.sin(angle)) + warp_x + warp_y)
+
+    # Add small Gaussian noise
+    ridges = ridges + rng.standard_normal((size, size)) * 0.1
+
+    # Normalise to [0, 255] uint8
+    ridges = (ridges - ridges.min()) / (ridges.max() - ridges.min() + 1e-9)
+    img = (ridges * 255).astype(np.uint8)
+
+    cv2.imwrite(str(output_path), img)
+
+
 def load_socofing_samples(
     dataset_path: str,
     num_subjects: int = 10,

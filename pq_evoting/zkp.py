@@ -154,7 +154,7 @@ class LatticeZKP:
     # ------------------------------------------------------------------
 
     def _commit(self, v: int, r: np.ndarray) -> np.ndarray:
-        return (self.A @ r + int(v) * self.e0) % self.q
+        return (_matvec_mod(self.A, r, self.q) + int(v) * self.e0) % self.q
 
     # ------------------------------------------------------------------
     # Sigma protocol (two-component: proves knowledge of (v, r))

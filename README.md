@@ -62,14 +62,14 @@ All packages are listed in `requirements.txt`. Verified working versions:
 
 ```
 pq_evoting/
-├── config.py                # All cryptographic parameters & tuning constants
-├── pq_crypto.py             # ML-KEM-768 + ML-DSA-65 + AES-256-GCM primitives
-├── cancellable_biometric.py # Gabor+HOG BioHashing + SOCOFing image loader
-├── fhe_voting.py            # BFV homomorphic vote encryption & tallying
-├── zkp.py                   # Lattice ZKP (two-component Sigma + CDS OR proofs)
-├── blockchain.py            # SHA3-256 chain with PoW + ML-DSA-65 signed blocks
-├── voter.py                 # Voter registration, registry, biometric lockout
-├── voting_system.py         # ElectionAuthority + Voter orchestration classes
+├── config.py                                              # All cryptographic parameters & tuning constants
+├── pq_crypto.py                                           # ML-KEM-768 + ML-DSA-65 + AES-256-GCM primitives
+├── cancellable_biometric.py                           # Gabor+HOG BioHashing + SOCOFing image loader
+├── fhe_voting.py                                         # BFV homomorphic vote encryption & tallying
+├── zkp.py                                                # Lattice ZKP (two-component Sigma + CDS OR proofs)
+├── blockchain.py                                         # SHA3-256 chain with PoW + ML-DSA-65 signed blocks
+├── voter.py                                              # Voter registration, registry, biometric lockout
+├── voting_system.py                                      # ElectionAuthority + Voter orchestration classes
 └── __init__.py
 
 contracts/
@@ -90,29 +90,28 @@ diagrams/
 
 
 paper/
-├── benchmarks.md            # Per-operation latency & scalability data (Section 6)
-├── paper-writing-guide.md   # Full paper structure, citations, reviewer Q&A
-├── strengths.md             # Novel contributions vs. prior art
-├── vulnerabilities.md       # 9 security bugs found and fixed
+├── benchmarks.md            # Per-operation latency & scalability data (Section 6)                       
+├── strengths.md                                    
+├── vulnerabilities.md       
 ├── far-reduction.md         # FAR/FRR ablation study details
 ├── fhe-noise-explainer.md   # BFV noise budget explanation
 └── expandability.md         # Future work and system expansion
 
 test result/
-├── benchmark.py             # Per-operation & end-to-end latency benchmarks
-├── eval_biometric.py        # FAR/FRR/EER evaluation on SOCOFing
-├── fig8_bio_score_distribution.py/png  # Genuine vs impostor histogram
-├── fig9_det_curve.py/png               # DET curve (ISO/IEC 19795-1)
-├── fig10_roc_curve.py/png              # ROC curve with AUC
-└── fig11_ablation.py/png               # FAR reduction ablation chart
+├── benchmark.py                            # Per-operation & end-to-end latency benchmarks
+├── eval_biometric.py                     # FAR/FRR/EER evaluation on SOCOFing
+├── fig8_bio_score_distribution.py/png    #  Genuine vs impostor histogram
+├── fig9_det_curve.py/png                  # DET curve (ISO/IEC 19795-1)
+├── fig10_roc_curve.py/png                 # ROC curve with AUC
+└── fig11_ablation.py/png                  # FAR reduction ablation chart
 
-SOCOFing/                    # Fingerprint dataset (not included — download separately)
+SOCOFing/                     # Fingerprint dataset (not included — download separately)
 └── Real/                    # 6,000 BMP images, 600 subjects
 
-demo.py                      # CLI end-to-end demonstration
-eval_biometric.py            # Root-level biometric evaluation script
-benchmark.py                 # Root-level benchmark script
-bio_eval_results.txt         # Latest biometric evaluation output
+demo.py                      # CLI (end-to-end demonstration)
+eval_biometric.py            # (Root-level) biometric evaluation script
+benchmark.py                 # (Root-level) benchmark script
+bio_eval_results.txt         # biometric evaluation output
 requirements.txt             # Python dependencies
 ```
 

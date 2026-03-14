@@ -46,7 +46,7 @@ def main():
     msg   = b"vote-commitment-payload"
 
     print("  FHE authority init (slow — generates BFV context)...")
-    auth  =FHEAuthority(num_candidates=N_CANDIDATES)
+    auth  = FHEAuthority(num_candidates=N_CANDIDATES)
     voter = FHEVoter(auth.public_context_bytes(), num_candidates=N_CANDIDATES)
     print("  Done.\n")
 

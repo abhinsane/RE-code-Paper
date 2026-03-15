@@ -52,10 +52,6 @@ All packages are listed in `requirements.txt`. Verified working versions:
 | `eth-tester` | 0.8.0 | latest | In-memory EVM backend for testing |
 | `py-evm` | 0.5.0 | latest | PyEVM backend for eth-tester |
 
-> **Note:** `tenseal` may require a C++ build toolchain on some platforms.
-> On Debian/Ubuntu: `sudo apt install build-essential cmake`
-> On macOS: `xcode-select --install`
-
 ---
 
 ## Repository Structure

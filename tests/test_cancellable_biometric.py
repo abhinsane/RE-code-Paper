@@ -5,7 +5,26 @@ All tests use synthetic fingerprints so no SOCOFing dataset is required.
 A single PQKeyPair is generated once per module (slow KEM keygen) and shared
 across tests via a session-scoped fixture.
 
-
+Abbreviations used in this file
+--------------------------------
+BMP    - Bitmap  (image file format for fingerprint images)
+BioHash- Biometric Hash  (binarised projection of a biometric feature vector)
+CB     - Cancellable Biometric
+CLAHE  - Contrast Limited Adaptive Histogram Equalization
+DSA    - Digital Signature Algorithm
+FAR    - False Acceptance Rate  (fraction of impostors incorrectly accepted)
+FRR    - False Rejection Rate  (fraction of genuine users incorrectly rejected)
+HOG    - Histogram of Oriented Gradients  (image descriptor)
+KEM    - Key Encapsulation Mechanism  (asymmetric key-wrapping primitive)
+ML-DSA - Module-Lattice Digital Signature Algorithm  (NIST FIPS 204)
+ML-KEM - Module-Lattice Key Encapsulation Mechanism  (NIST FIPS 203)
+NIST   - National Institute of Standards and Technology
+ORB    - Oriented FAST and Rotated BRIEF  (keypoint descriptor, legacy)
+PQ     - Post-Quantum  (secure against quantum-computer attacks)
+QR     - QR decomposition  (factorises matrix into orthonormal Q and upper-triangular R)
+SHA3   - Secure Hash Algorithm 3  (NIST FIPS 202 hash family)
+SHAKE  - Secure Hash Algorithm with variable-length output  (NIST FIPS 202 XOF)
+SOCOFing - Sokoto Coventry Fingerprint dataset  (600 subjects × 10 fingers)
 """
 
 import hashlib
@@ -29,9 +48,9 @@ SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Visualisation helper
-# ---------------------------------------------------------------------------
+# ---------------
 
 def _save_fingerprint_figure(
     image_paths: list,
@@ -77,9 +96,9 @@ def _save_fingerprint_figure(
     print(f"\n  [snapshot] {out}")
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Revocability proof snapshot
-# ---------------------------------------------------------------------------
+# ---------------
 
 def _save_revocability_proof(
     image_path: str,
@@ -235,9 +254,9 @@ def _save_revocability_proof(
     print(f"\n  [revocability proof] {out}")
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Fixtures
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 @pytest.fixture(scope="session")
@@ -271,18 +290,18 @@ TOKEN_A = b"token_version_1"
 TOKEN_B = b"token_version_2"
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Helper
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 def enroll(cb, fp, authority, token):
-    return cb.enroll(fp, token, authority.kem_pk)
+    return cb.enroll(fp, token, authority.kem_pk, authority.sig_sk)
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Biometric feature extraction (HOG — Histogram of Oriented Gradients)
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestFeatureExtraction:
@@ -326,9 +345,9 @@ class TestFeatureExtraction:
             cb.extract_features("/nonexistent/path.bmp")
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # BioHash (Biometric Hash) — binarised orthogonal projection
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestBioHash:
@@ -395,9 +414,9 @@ class TestBioHash:
         )
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Enrolment — PQ-encrypted (ML-KEM-768) template storage
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestEnrollment:
@@ -438,9 +457,9 @@ class TestEnrollment:
         assert e_a["template_hash"] != e_b["template_hash"]
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Verification — Hamming-distance comparison of decrypted BioHash templates
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestVerification:
@@ -452,7 +471,7 @@ class TestVerification:
             filename="verify_genuine.png",
         )
         enrolled = enroll(cb, fingerprint_path, authority, TOKEN_A)
-        is_match, score = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, enrolled)
+        is_match, score, _ = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
         assert is_match, f"Expected match but got score={score:.3f}"
         assert 0.0 <= score <= 1.0
 
@@ -464,7 +483,7 @@ class TestVerification:
             filename="verify_wrong_token.png",
         )
         enrolled = enroll(cb, fingerprint_path, authority, TOKEN_A)
-        is_match, score = cb.verify(fingerprint_path, TOKEN_B, authority.kem_sk, enrolled)
+        is_match, score, _ = cb.verify(fingerprint_path, TOKEN_B, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
         assert not is_match
         assert score == 0.0  # rejected at token-hash check before biometric comparison
 
@@ -478,8 +497,9 @@ class TestVerification:
             filename="verify_impostor.png",
         )
         enrolled = enroll(cb, fingerprint_path, authority, TOKEN_A)
-        is_match, score = cb.verify(
-            second_fingerprint_path, TOKEN_A, authority.kem_sk, enrolled
+        is_match, score, _ = cb.verify(
+            second_fingerprint_path, TOKEN_A, authority.kem_sk, enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert not is_match, (
             f"Different fingerprint should not match (score={score:.3f})"
@@ -487,15 +507,15 @@ class TestVerification:
 
     def test_score_in_range(self, cb, fingerprint_path, authority):
         enrolled = enroll(cb, fingerprint_path, authority, TOKEN_A)
-        _, score = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, enrolled)
+        _, score, _ = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
         assert 0.0 <= score <= 1.0
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Cancellation / Revocation
 # Cancellability: changing token makes old and new templates computationally
 # unlinkable — an attacker with the old template learns nothing about the new one.
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestCancellation:
@@ -511,10 +531,11 @@ class TestCancellation:
         new_enrolled = cb.cancel_and_reenroll(
             fingerprint_path, TOKEN_A, TOKEN_B,
             authority.kem_pk, authority.kem_sk, enrolled,
+            authority_sig_sk=authority.sig_sk, authority_sig_pk=authority.sig_pk,
         )
-        _, score_genuine      = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, enrolled)
-        _, score_old_revoked  = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, new_enrolled)
-        _, score_new_valid    = cb.verify(fingerprint_path, TOKEN_B, authority.kem_sk, new_enrolled)
+        _, score_genuine, _      = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
+        _, score_old_revoked, _  = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, new_enrolled, authority_sig_pk=authority.sig_pk)
+        _, score_new_valid, _    = cb.verify(fingerprint_path, TOKEN_B, authority.kem_sk, new_enrolled, authority_sig_pk=authority.sig_pk)
         _save_revocability_proof(
             image_path        = fingerprint_path,
             cb                = cb,
@@ -545,7 +566,7 @@ class TestCancellation:
             filename="cancel_old_token_rejected.png",
             subject_label="Synthetic A (seed=42)",
         )
-        is_match, score = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, new_enrolled)
+        is_match, score, _ = cb.verify(fingerprint_path, TOKEN_A, authority.kem_sk, new_enrolled, authority_sig_pk=authority.sig_pk)
         assert not is_match
         assert score == 0.0
 
@@ -555,7 +576,7 @@ class TestCancellation:
             filename="cancel_new_token_valid.png",
             subject_label="Synthetic A (seed=42)",
         )
-        is_match, score = cb.verify(fingerprint_path, TOKEN_B, authority.kem_sk, new_enrolled)
+        is_match, score, _ = cb.verify(fingerprint_path, TOKEN_B, authority.kem_sk, new_enrolled, authority_sig_pk=authority.sig_pk)
         assert is_match, f"New token should match after re-enrolment (score={score:.3f})"
 
     def test_revoke_with_wrong_old_token_raises(self, cb, fingerprint_path, authority):
@@ -570,6 +591,7 @@ class TestCancellation:
             cb.cancel_and_reenroll(
                 fingerprint_path, TOKEN_B, b"token_v3",
                 authority.kem_pk, authority.kem_sk, enrolled,
+                authority_sig_sk=authority.sig_sk, authority_sig_pk=authority.sig_pk,
             )
 
     def test_old_and_new_templates_unlinkable(self, cb, fingerprint_path, authority):
@@ -597,10 +619,11 @@ class TestCancellation:
             new_enr   = cb.cancel_and_reenroll(
                 fingerprint_path, old_tok, new_tok,
                 authority.kem_pk, authority.kem_sk, enrolled,
+                authority_sig_sk=authority.sig_sk, authority_sig_pk=authority.sig_pk,
             )
-            _, s_genuine     = cb.verify(fingerprint_path, old_tok, authority.kem_sk, enrolled)
-            _, s_old_revoked = cb.verify(fingerprint_path, old_tok, authority.kem_sk, new_enr)
-            _, s_new_valid   = cb.verify(fingerprint_path, new_tok, authority.kem_sk, new_enr)
+            _, s_genuine, _     = cb.verify(fingerprint_path, old_tok, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
+            _, s_old_revoked, _ = cb.verify(fingerprint_path, old_tok, authority.kem_sk, new_enr, authority_sig_pk=authority.sig_pk)
+            _, s_new_valid, _   = cb.verify(fingerprint_path, new_tok, authority.kem_sk, new_enr, authority_sig_pk=authority.sig_pk)
             _save_revocability_proof(
                 image_path        = fingerprint_path,
                 cb                = cb,
@@ -615,5 +638,5 @@ class TestCancellation:
                 subject_label     = f"Synthetic A — step {i+1}: {old_tok.decode()} → {new_tok.decode()}",
             )
             enrolled = new_enr
-        is_match, score = cb.verify(fingerprint_path, tokens[-1], authority.kem_sk, enrolled)
+        is_match, score, _ = cb.verify(fingerprint_path, tokens[-1], authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
         assert is_match, f"Final token should verify after chained revocations (score={score:.3f})"

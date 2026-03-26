@@ -35,9 +35,9 @@ SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 _DEFAULT_TTL = 300   # seconds (5 minutes)
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # CLI options
-# ---------------------------------------------------------------------------
+# ---------------
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
@@ -58,9 +58,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Session fixture
-# ---------------------------------------------------------------------------
+# ---------------
 
 @pytest.fixture(scope="session", autouse=True)
 def manage_snapshots(request: pytest.FixtureRequest) -> None:

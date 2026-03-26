@@ -1,11 +1,41 @@
 """
 Real-fingerprint tests for CancellableBiometric using the SOCOFing dataset.
 
-Requires: uses SOCOFing/Real/ directory with BMP fingerprint images.
+Requires: SOCOFing/Real/ directory with BMP fingerprint images.
+Skipped automatically if the dataset is not present.
 
 Run:
     pytest tests/test_cancellable_biometric_real.py -v
 
+Abbreviations used in this file
+--------------------------------
+AFIS   - Automated Fingerprint Identification System
+AES    - Advanced Encryption Standard
+AUC    - Area Under the (ROC) Curve
+BioHash- Biometric Hash  (binarised projection of a biometric feature vector)
+BMP    - Bitmap  (image file format used by SOCOFing)
+CB     - Cancellable Biometric
+CLAHE  - Contrast Limited Adaptive Histogram Equalization
+DET    - Detection Error Tradeoff  (FAR vs FRR curve)
+EER    - Equal Error Rate  (point where FAR == FRR)
+FAR    - False Acceptance Rate  (fraction of impostors incorrectly accepted)
+FIPS   - Federal Information Processing Standards  (NIST standard series)
+FRR    - False Rejection Rate  (fraction of genuine users incorrectly rejected)
+GCM    - Galois/Counter Mode  (authenticated encryption mode for AES)
+HOG    - Histogram of Oriented Gradients  (image descriptor used for feature extraction)
+KEM    - Key Encapsulation Mechanism  (asymmetric key-wrapping primitive)
+ML-DSA - Module-Lattice Digital Signature Algorithm  (NIST FIPS 204)
+ML-KEM - Module-Lattice Key Encapsulation Mechanism  (NIST FIPS 203)
+NIST   - National Institute of Standards and Technology
+ORB    - Oriented FAST and Rotated BRIEF  (keypoint descriptor, legacy)
+PQ     - Post-Quantum  (secure against quantum-computer attacks)
+QR     - QR decomposition  (factorises matrix into orthonormal Q and upper-triangular R)
+ROC    - Receiver Operating Characteristic  (TPR vs FPR curve)
+SHA3   - Secure Hash Algorithm 3  (NIST FIPS 202 hash family)
+SHAKE  - Secure Hash Algorithm with variable-length Key Expansion  (NIST FIPS 202 XOF)
+SOCOFing - Sokoto Coventry Fingerprint dataset  (600 subjects × 10 fingers × 1 BMP each)
+TPR    - True Positive Rate  (fraction of genuine users correctly accepted)
+XOF    - Extendable Output Function  (variable-length hash, used in SHAKE)
 """
 
 import hashlib
@@ -21,9 +51,9 @@ import pytest
 from pq_evoting.cancellable_biometric import CancellableBiometric
 from pq_evoting.pq_crypto import PQKeyPair
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Dataset discovery — skip entire module if SOCOFing is absent
-# ---------------------------------------------------------------------------
+# ---------------
 
 SOCOFING_DIR = Path(__file__).parent.parent / "SOCOFing" / "Real"
 
@@ -48,9 +78,9 @@ SUBJECT_A = "100"
 SUBJECT_B = "101"
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Visualisation helper
-# ---------------------------------------------------------------------------
+# ---------------
 
 def _save_revocability_proof(
     image_path: str,
@@ -242,9 +272,9 @@ def _save_fingerprint_figure(
     print(f"\n  [snapshot] {out}")
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Fixtures
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 @pytest.fixture(scope="module")
@@ -280,9 +310,9 @@ TOKEN_A = b"real_token_v1"
 TOKEN_B = b"real_token_v2"
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Feature extraction using Gabor + HOG (Histogram of Oriented Gradients)
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestRealFeatureExtraction:
@@ -335,10 +365,10 @@ class TestRealFeatureExtraction:
         assert not np.array_equal(f1, f2)
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Genuine match — same finger enrolled and probed with same token
 # BIO_MATCH_THRESHOLD = 0.818 (from config.py)
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestRealGenuineMatch:
@@ -351,9 +381,10 @@ class TestRealGenuineMatch:
             filename="real_genuine_match.png",
             extra_info="Hamming similarity must be ≥ 0.818 (BIO_MATCH_THRESHOLD in config.py)",
         )
-        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk)
-        is_match, score = cb.verify(
-            subject_a_images[0], TOKEN_A, authority.kem_sk, enrolled
+        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk, authority.sig_sk)
+        is_match, score, _ = cb.verify(
+            subject_a_images[0], TOKEN_A, authority.kem_sk, enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert is_match, f"Genuine match failed (score={score:.3f})"
         assert score >= 0.818
@@ -364,15 +395,15 @@ class TestRealGenuineMatch:
             title="TestRealGenuineMatch — similarity score range check",
             filename="real_score_range.png",
         )
-        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk)
-        _, score = cb.verify(subject_a_images[0], TOKEN_A, authority.kem_sk, enrolled)
+        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk, authority.sig_sk)
+        _, score, _ = cb.verify(subject_a_images[0], TOKEN_A, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
         assert 0.0 <= score <= 1.0
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Impostor rejection — different subject tries to authenticate
 # FAR (False Acceptance Rate) must be 0 for this pair
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestRealImpostorRejection:
@@ -387,9 +418,10 @@ class TestRealImpostorRejection:
             filename="real_impostor_rejection.png",
             extra_info="FAR (False Acceptance Rate) must be 0 — different subjects must never match",
         )
-        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk)
-        is_match, score = cb.verify(
-            subject_b_images[0], TOKEN_A, authority.kem_sk, enrolled
+        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk, authority.sig_sk)
+        is_match, score, _ = cb.verify(
+            subject_b_images[0], TOKEN_A, authority.kem_sk, enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert not is_match, (
             f"Impostor from Subject {SUBJECT_B} should be rejected (score={score:.3f})"
@@ -403,21 +435,22 @@ class TestRealImpostorRejection:
             title="TestRealImpostorRejection — wrong token rejected at SHA3-256 check",
             filename="real_wrong_token.png",
         )
-        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk)
-        is_match, score = cb.verify(
-            subject_a_images[0], TOKEN_B, authority.kem_sk, enrolled
+        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk, authority.sig_sk)
+        is_match, score, _ = cb.verify(
+            subject_a_images[0], TOKEN_B, authority.kem_sk, enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert not is_match
         assert score == 0.0
 
 
-# ---------------------------------------------------------------------------
+# ---------------
 # Cancellability — token revocation on real SOCOFing fingerprints
 #
 # Cancellability property: changing the token changes the QR-decomposed
 # orthogonal projection matrix, producing a new BioHash that is statistically
 # independent of the old one (Hamming similarity ≈ 0.5 between old and new).
-# ---------------------------------------------------------------------------
+# ---------------
 
 
 class TestRealCancellability:
@@ -430,14 +463,15 @@ class TestRealCancellability:
         feat     = cb.extract_features(image_path)
         bh_old   = cb.compute_biohash(feat, TOKEN_A)
         bh_new   = cb.compute_biohash(feat, TOKEN_B)
-        enrolled = cb.enroll(image_path, TOKEN_A, authority.kem_pk)
+        enrolled = cb.enroll(image_path, TOKEN_A, authority.kem_pk, authority.sig_sk)
         new_enrolled = cb.cancel_and_reenroll(
             image_path, TOKEN_A, TOKEN_B,
             authority.kem_pk, authority.kem_sk, enrolled,
+            authority_sig_sk=authority.sig_sk, authority_sig_pk=authority.sig_pk,
         )
-        _, score_genuine      = cb.verify(image_path, TOKEN_A, authority.kem_sk, enrolled)
-        _, score_old_revoked  = cb.verify(image_path, TOKEN_A, authority.kem_sk, new_enrolled)
-        _, score_new_valid    = cb.verify(image_path, TOKEN_B, authority.kem_sk, new_enrolled)
+        _, score_genuine, _      = cb.verify(image_path, TOKEN_A, authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
+        _, score_old_revoked, _  = cb.verify(image_path, TOKEN_A, authority.kem_sk, new_enrolled, authority_sig_pk=authority.sig_pk)
+        _, score_new_valid, _    = cb.verify(image_path, TOKEN_B, authority.kem_sk, new_enrolled, authority_sig_pk=authority.sig_pk)
         _save_revocability_proof(
             image_path        = image_path,
             cb                = cb,
@@ -478,8 +512,9 @@ class TestRealCancellability:
             filename="real_cancel_old_token.png",
             subject_label=f"Subject {SUBJECT_A}  {Path(subject_a_images[0]).name}",
         )
-        is_match, score = cb.verify(
-            subject_a_images[0], TOKEN_A, authority.kem_sk, new_enrolled
+        is_match, score, _ = cb.verify(
+            subject_a_images[0], TOKEN_A, authority.kem_sk, new_enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert not is_match
         assert score == 0.0
@@ -490,8 +525,9 @@ class TestRealCancellability:
             filename="real_cancel_new_token.png",
             subject_label=f"Subject {SUBJECT_A}  {Path(subject_a_images[0]).name}",
         )
-        is_match, score = cb.verify(
-            subject_a_images[0], TOKEN_B, authority.kem_sk, new_enrolled
+        is_match, score, _ = cb.verify(
+            subject_a_images[0], TOKEN_B, authority.kem_sk, new_enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert is_match, f"New token should match after revocation (score={score:.3f})"
 
@@ -519,7 +555,7 @@ class TestRealCancellability:
             subject_label=f"Subject {SUBJECT_A} — enrolled finger",
         )
         # Then test cross-finger verification
-        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk)
+        enrolled = cb.enroll(subject_a_images[0], TOKEN_A, authority.kem_pk, authority.sig_sk)
         _save_fingerprint_figure(
             [subject_a_images[0], subject_a_images[1]],
             [
@@ -533,7 +569,8 @@ class TestRealCancellability:
                 "Score should be in [0, 1]; match depends on inter-finger similarity"
             ),
         )
-        is_match, score = cb.verify(
-            subject_a_images[1], TOKEN_A, authority.kem_sk, enrolled
+        is_match, score, _ = cb.verify(
+            subject_a_images[1], TOKEN_A, authority.kem_sk, enrolled,
+            authority_sig_pk=authority.sig_pk,
         )
         assert 0.0 <= score <= 1.0

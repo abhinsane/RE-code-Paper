@@ -387,7 +387,7 @@ Run `python "test result/benchmark.py"` to reproduce on your machine.
 ## Limitations and Future Work
 
 - **BFV noise growth**: Supports ~16,000 votes per shard (BFV degree=16384) before noise exceeds the plaintext modulus. ShardedFHETally removes the ceiling by distributing votes across independent shards of ≤3,200 votes each.
-- **Biometric accuracy**: Evaluated on SOCOFing (Real + Altered, 8,189 genuine / 40,945 impostor pairs): EER = 2.61% at threshold 0.818. FAR at ISO FRR operating points remains high due to score distribution overlap; multi-impression enrollment or an SVM classifier would reduce it further (see `paper/far-reduction.md`).
+- **Biometric accuracy**: Evaluated on SOCOFing (Real + Altered, 8,189 genuine / 40,945 impostor pairs): EER = 2.61% at threshold 0.818. FAR at ISO FRR operating points remains high due to score distribution overlap; multi-impression enrollment or an SVM classifier would reduce it further.
 - **ZKP-FHE binding**: The lattice ZKP and BFV ciphertext are currently independent; a full binding requires a Proof of Knowledge of BFV plaintext (active research area).
 
 ---

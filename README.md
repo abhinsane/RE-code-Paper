@@ -41,7 +41,7 @@ All packages are listed in `requirements.txt`. Verified working versions:
 | `numpy` | 2.0 | 2.4.2 | Lattice arithmetic, ZKP vectors |
 | `scipy` | 1.0 | latest | Statistical utilities |
 | `scikit-learn` | 1.0 | latest | Biometric template utilities |
-| `opencv-python-headless` | 4.0 | 4.13.0 | ORB fingerprint feature extraction |
+| `opencv-python-headless` | 4.0 | 4.13.0 | Gabor+HOG fingerprint feature extraction |
 | `Pillow` | 10.0 | latest | Image I/O for fingerprint BMP files |
 | `cryptography` | 41.0 | 41.0.7 | AES-256-GCM, SHA3 |
 | `streamlit` | 1.40 | 1.55.0 | Web dashboard |
@@ -51,6 +51,10 @@ All packages are listed in `requirements.txt`. Verified working versions:
 | `eth-account` | 0.9.0 | latest | Ethereum account management |
 | `eth-tester` | 0.8.0 | latest | In-memory EVM backend for testing |
 | `py-evm` | 0.5.0 | latest | PyEVM backend for eth-tester |
+
+> **Note:** `tenseal` may require a C++ build toolchain on some platforms.
+> On Debian/Ubuntu: `sudo apt install build-essential cmake`
+> On macOS: `xcode-select --install`
 
 ---
 
@@ -179,18 +183,20 @@ Open **http://localhost:8501** in your browser.
 | Tab | What it does |
 |---|---|
 | **Setup** | Configure election name, candidate list, PoW difficulty, and Ethereum RPC |
-| **Register** | Enrol voters — upload a SOCOFing fingerprint image (BMP/PNG) |
+| **Register** | Enrol voters — upload a SOCOFing fingerprint image (BMP/PNG). **Locked automatically when voting opens.** |
 | **Vote** | Biometric authentication + cast an FHE-encrypted, ZKP-proven ballot |
 | **Results** | Plotly bar chart of the tally + ML-DSA-65 signature verification |
 | **Chain** | PQ-blockchain explorer (block hashes, Merkle roots) + Ethereum event log |
+| **Revoke Biometric** | Voter self-service: revoke a compromised template and re-enrol with a new PIN |
 
 Typical session flow inside the GUI:
 
 1. **Setup** tab → set candidates → click *Initialise Election*
 2. **Register** tab → add each voter (name + fingerprint)
-3. **Vote** tab → for each voter: enter voter ID, upload fingerprint, pick candidate → *Cast Vote*
-4. **Results** tab → click *Finalise & Tally* → view results and verify authority signature
-5. **Chain** tab → inspect blockchain blocks and Ethereum anchor transaction
+3. **Register** tab → click ** **Open Voting**** — this seals the electoral roll (`lock_registration()`). No new voters can be added from this point.
+4. **Vote** tab → for each voter: enter voter ID, upload fingerprint, pick candidate → *Cast Vote*
+5. **Results** tab → click *Finalise & Tally* → view results and verify authority signature
+6. **Chain** tab → inspect blockchain blocks and Ethereum anchor transaction
 
 ---
 
@@ -332,6 +338,9 @@ ZKP parameters: `q = 2³¹ − 1` (Mersenne prime), `n = 128`, `m = 256`, `β = 
 | Immutability | SHA3-256 chained blocks + Ethereum smart contract anchoring |
 | Brute-force protection | 5-attempt lockout with 5-minute timeout on biometric auth |
 | Voter registry | SQLite-backed with write-through cache and append-only audit log |
+| Electoral roll integrity | Registration locked when voting opens — no late enrollments |
+| Voter-initiated revocation | Signed revocation request (ML-DSA-65) + biometric re-enrollment |
+| Biometric-ballot binding | bio_commitment stored in VoteRecord; included in ML-DSA-65 sig payload |
 
 ---
 
@@ -381,23 +390,29 @@ Run `python "test result/benchmark.py"` to reproduce on your machine.
 - **Biometric accuracy**: Evaluated on SOCOFing (Real + Altered, 8,189 genuine / 40,945 impostor pairs): EER = 2.61% at threshold 0.818. FAR at ISO FRR operating points remains high due to score distribution overlap; multi-impression enrollment or an SVM classifier would reduce it further (see `paper/far-reduction.md`).
 - **ZKP-FHE binding**: The lattice ZKP and BFV ciphertext are currently independent; a full binding requires a Proof of Knowledge of BFV plaintext (active research area).
 
-
-
 ---
 
 ## Comparison with Research Literature
 
-| Property | This System | Helios [Adida 2008] | Belenios [Cortier 2013] | PQ-Vote [Chillotti 2021] |
-|---|---|---|---|---|
-| Post-quantum secure | Yes (ML-KEM + ML-DSA) | No (RSA/ECC) | No (ECC) | Partial (FHE only) |
-| Biometric auth | Yes (cancellable) | No | No | No |
-| Homomorphic tally | Yes (BFV/FHE) | Yes (ElGamal) | Yes (ElGamal) | Yes (TFHE) |
-| Zero-knowledge proofs | Yes (lattice) | Yes (DL-based) | Yes (DL-based) | No |
-| Blockchain anchoring | Yes (SHA3 + ETH) | No | No | No |
-| Template cancelability | Yes (ISO 24745) | N/A | N/A | N/A |
-| End-to-end verifiable | Yes | Yes | Yes | Partial |
-| Quantum-safe signatures | Yes (ML-DSA-65) | No | No | No |
+Detailed profiles for each system are in [`paper/system-comparison.md`](paper/system-comparison.md).
 
+| Property | **This Work** | Helios [2008] | Belenios [2013] | Civitas [2008] | Prêt à Voter [2006] | DEMOS [2015] | CHVote [2017] | PQ-Vote [2021] | BioVoting [2020] |
+|---|---|---|---|---|---|---|---|---|---|
+| **Post-quantum secure** | **Yes (full)** | No | No | No | No | No | No | Partial | No |
+| **Biometric auth** | **Yes (BioHash, ISO 24745)** | No | No | No | No | No | No | No | Yes (Bloom) |
+| **Template cancelability** | **Yes (QR projection)** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | Yes (Bloom) |
+| **Homomorphic tally** | **Yes (BFV / ShardedFHE)** | Partial | Partial | No (mixnet) | No (mixnet) | Partial | No (mixnet) | Yes (TFHE) | Partial (Paillier) |
+| **Zero-knowledge proofs** | **Yes (lattice, MSIS)** | Yes (DL) | Yes (DL) | Yes (DL) | Yes (mixnet) | Yes (std model) | Yes (DL) | No | No |
+| **Blockchain anchoring** | **Yes (SHA3+ML-DSA+ETH)** | No | No | No | No | No | No | No | No |
+| **Key encapsulation** | **ML-KEM-768 (FIPS 203)** | ElGamal | ElGamal/EC | ElGamal | ElGamal | ElGamal | ElGamal | TLWE | Paillier |
+| **Signatures** | **ML-DSA-65 (FIPS 204)** | RSA/DSA | Ed25519 | DSA | RSA | Std-model | ECDSA | Unspecified | RSA |
+| **Coercion resistance** | No | No | No | **Yes** | Partial | No | No | No | No |
+| **End-to-end verifiable** | Yes | Yes | **Yes** | Yes | Yes | **Yes** | Yes | Partial | No |
+| **Production deployed** | No (prototype) | **Yes** | **Yes** | No | Pilots | No | **Yes** (retired) | No | No |
+| **Biometric-ballot binding** | **Yes (bio_commitment)** | N/A | N/A | N/A | N/A | N/A | N/A | N/A | No |
+| **Electoral roll lock** | **Yes** | No | No | No | Physical | No | No | No | No |
+| **Voter-initiated revocation** | **Yes (ML-DSA-65 signed)** | No | No | No | No | No | No | No | No |
+| **Quantum-safe ZKP** | **Yes (Ajtai+FS, MSIS)** | No (ECDLP) | No (ECDLP) | No (ECDLP) | No | No | No | N/A | No |
 ---
 
 ## References

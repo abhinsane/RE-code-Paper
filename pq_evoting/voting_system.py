@@ -57,9 +57,7 @@ from .voter import VoterRegistration, VoterRegistry
 from .zkp import LatticeZKP
 
 
-# ---------------
 # Election configuration
-# ---------------
 
 class ElectionConfig:
     """Immutable election configuration."""
@@ -77,9 +75,7 @@ class ElectionConfig:
         self.num_candidates  = len(candidates)
 
 
-# ---------------
 # Election authority
-# ---------------
 
 class ElectionAuthority:
     """
@@ -129,9 +125,7 @@ class ElectionAuthority:
             f"Candidates: {config.candidates}"
         )
 
-    # ------
-    # Public parameter broadcast
-    # ------
+# Public parameter broadcast 
 
     def public_params(self) -> dict:
         """
@@ -146,10 +140,8 @@ class ElectionAuthority:
             "authority_sig_pk":   self._kp.sig_pk,
             "fhe_public_context": self._fhe.public_context_bytes(),
         }
-
-    # ------
-    # Voter registration
-    # ------
+ 
+ # Voter registration  
 
     def lock_registration(self) -> None:
         """
@@ -200,9 +192,8 @@ class ElectionAuthority:
         print(f"[Authority]   → voter {voter_id[:8]}… enrolled. ✓")
         return reg
 
-    # ------
-    # Biometric authentication
-    # ------
+ 
+ # Biometric authentication  
 
     def authenticate(
         self,
@@ -259,9 +250,7 @@ class ElectionAuthority:
                 )
         return ok, score
 
-    # ------
-    # Vote reception
-    # ------
+# Vote reception
 
     def receive_vote(self, submission: dict) -> bool:  # noqa: C901
         """
@@ -288,12 +277,12 @@ class ElectionAuthority:
         with self._vote_lock:
             reg = self._registry.get(voter_id)
 
-            # ---- Eligibility -------------------------------------------------
+             # Eligibility 
             if reg is None or not reg.is_active or reg.has_voted:
                 print(f"[Authority] Vote rejected — voter ineligible: {voter_id[:8]}…")
                 return False
 
-            # ---- Biometric authentication gate --------------------------------
+             # Biometric authentication gate 
             # The voter MUST have passed biometric verification (via authenticate())
             # in this session AND within the AUTH_SESSION_TIMEOUT window before
             # their ballot is accepted.  is_authenticated() auto-expires stale
@@ -305,7 +294,7 @@ class ElectionAuthority:
                 )
                 return False
 
-            # ---- Bio-commitment cross-check ----------------------------------
+             # Bio-commitment cross-check 
             # Retrieve the bio_commitment stored at authentication time and verify
             # it matches the one embedded in the submission.  This is the critical
             # link: a ballot whose bio_commitment doesn't match what the authority
@@ -320,7 +309,7 @@ class ElectionAuthority:
                 return False
             bio_commitment = stored_bio_commitment
 
-            # ---- ML-DSA-65 signature -----------------------------------------
+             # ML-DSA-65 signature 
             # Signature now covers enc_hex | zkp_hash | bio_commitment_hex so the
             # biometric binding is authenticated under the voter's signing key.
             sig_payload = (
@@ -336,7 +325,7 @@ class ElectionAuthority:
                 print(f"[Authority] Vote rejected — invalid signature: {voter_id[:8]}…")
                 return False
 
-            # ---- ZKP verification (bio_commitment in Fiat-Shamir ctx) --------
+             # ZKP verification (bio_commitment in Fiat-Shamir ctx) 
             if not self._zkp.verify_vote_proof(
                 submission["zkp_proof"],
                 voter_id.encode(),
@@ -346,11 +335,11 @@ class ElectionAuthority:
                 print(f"[Authority] Vote rejected — ZKP invalid: {voter_id[:8]}…")
                 return False
 
-            # ---- FHE tally ---------------------------------------------------
+             # FHE tally 
             enc_bytes = bytes.fromhex(submission["encrypted_vote_hex"])
             self._tally.add_encrypted_vote(enc_bytes)
 
-            # ---- Blockchain --------------------------------------------------
+             # Blockchain 
             record = VoteRecord(
                 voter_id_hash=reg.voter_id_hash,
                 encrypted_vote=submission["encrypted_vote_hex"],
@@ -364,15 +353,15 @@ class ElectionAuthority:
                 print(f"[Authority] Duplicate nullifier — vote rejected: {voter_id[:8]}…")
                 return False
 
-            # ---- Mark voter --------------------------------------------------
+            # Mark voter 
             self._registry.mark_voted(voter_id)
             self._registry.clear_authentication(voter_id)   # one-time use auth token
             print(f"[Authority] Vote accepted and recorded. Voter: {voter_id[:8]}…")
             return True
 
-    # ------
-    # Election finalisation
-    # ------
+   
+# Election finalisation
+   
 
     def finalize(self) -> dict:
         """
@@ -470,9 +459,9 @@ class ElectionAuthority:
 
         return result
 
-    # ------
-    # Public accessors (avoid GUI/tests touching private attributes)
-    # ------
+   
+# Public accessors (avoid GUI/tests touching private attributes)
+   
 
     @property
     def authority_sig_pk(self) -> bytes:
@@ -578,17 +567,17 @@ class ElectionAuthority:
             reason=reason,
         )
 
-    # ------
+   
     # Blockchain statistics
-    # ------
+   
 
     def chain_stats(self) -> dict:
         return self._chain.stats()
 
 
-# ---------------
+
 # Voter client
-# ---------------
+
 
 class Voter:
     """
@@ -621,9 +610,9 @@ class Voter:
         self._bio = CancellableBiometric()
         print(f"[Voter {voter_id[:8]}…] Ready.")
 
-    # ------
+   
     # Public key accessors (for registration)
-    # ------
+   
 
     @property
     def kem_pk(self) -> bytes:
@@ -633,9 +622,9 @@ class Voter:
     def sig_pk(self) -> bytes:
         return self._kp.sig_pk
 
-    # ------
+   
     # Ballot casting
-    # ------
+   
 
     def cast_vote(
         self,
@@ -664,17 +653,17 @@ class Voter:
         """
         election_id = self._params["election_id"].encode()
 
-        # ---- Step 1: Biometric commitment ------------------------------
+         # Step 1: Biometric commitment ------------------------------
         bio_commitment  = self._bio.compute_bio_commitment(fingerprint_path, user_token)
         bio_commitment_hex = bio_commitment.hex()
         print(f"[Voter {self.voter_id[:8]}…] Bio-commitment derived from live BioHash.")
 
-        # ---- Step 2: FHE encryption ------------------------------------
+         # Step 2: FHE encryption ------------------------------------
         enc_bytes = self._fhe.encrypt_vote(candidate_idx)
         enc_hex   = enc_bytes.hex()
         print(f"[Voter {self.voter_id[:8]}…] Vote FHE-encrypted (BFV one-hot).")
 
-        # ---- Step 3: Lattice ZKP (bio_commitment in Fiat-Shamir ctx) ---
+         # Step 3: Lattice ZKP (bio_commitment in Fiat-Shamir ctx) ---
         zkp_proof      = self._zkp.prove_vote_range(
             candidate_idx, self._id_bytes, election_id,
             bio_commitment=bio_commitment,
@@ -687,7 +676,7 @@ class Voter:
         ).hex()
         print(f"[Voter {self.voter_id[:8]}…] Lattice ZKP generated (bio-bound).")
 
-        # ---- Step 4: ML-DSA-65 signature --------------------------------
+         # Step 4: ML-DSA-65 signature --------------------------------
         # Signature covers enc_hex | zkp_hash | bio_commitment_hex so any
         # tampering with the biometric binding is detected during verification.
         sig_payload = (enc_hex + "|" + zkp_proof_hash + "|" + bio_commitment_hex).encode()

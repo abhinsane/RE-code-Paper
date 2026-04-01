@@ -39,9 +39,9 @@ from pq_evoting.cancellable_biometric import (
 OUT_DIR = Path(__file__).parent   # saves results into "test result/"
 
 
-# ---------------------------------------------------------------------------
+
 # Helpers
-# ---------------------------------------------------------------------------
+
 
 def make_token(subject_id: str) -> bytes:
     """Deterministic per-subject token (simulates a hashed PIN)."""
@@ -80,9 +80,9 @@ def far_at_frr_target(thresholds, far, frr, target_frr):
     return float(far[valid[0]])
 
 
-# ---------------------------------------------------------------------------
+
 # Synthetic data generator
-# ---------------------------------------------------------------------------
+
 
 def load_socofing_with_altered(
     dataset_path: str,
@@ -119,7 +119,7 @@ def load_socofing_with_altered(
 
     extensions = {".bmp", ".BMP", ".png", ".PNG", ".jpg", ".JPG"}
 
-    # --- Real images ---
+    # Real images 
     real_by_finger: dict[str, str] = {}
     finger_to_subject: dict[str, str] = {}
     seen_subjects: set[str] = set()
@@ -142,7 +142,7 @@ def load_socofing_with_altered(
         real_by_finger[finger_key]    = str(img_path)
         finger_to_subject[finger_key] = subj_id
 
-    # --- Altered images (recursive — handles Altered/Easy/, Altered/Medium/ etc.) ---
+    # Altered images (recursive — handles Altered/Easy/, Altered/Medium/ etc.) 
     altered_by_finger: dict[str, list[str]] = {}
     for alt_dir in altered_dirs:
         for img_path in sorted(alt_dir.rglob("*")):
@@ -194,9 +194,9 @@ def generate_synthetic_subjects(n_subjects: int = 30,
     return subjects
 
 
-# ---------------------------------------------------------------------------
+
 # Main evaluation
-# ---------------------------------------------------------------------------
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
@@ -216,9 +216,8 @@ def main() -> None:
 
     bio = CancellableBiometric()
 
-    # ------------------------------------------------------------------
-    # 1. Load / generate fingerprint data
-    # ------------------------------------------------------------------
+ # 1. Load / generate fingerprint data
+   
     print("Loading fingerprint data ...")
     use_altered_mode = False
     real_by_finger:    dict[str, str]       = {}
@@ -255,9 +254,9 @@ def main() -> None:
         subjects = {k: v for k, v in subjects.items() if len(v) >= 2}
         print(f"  {len(subjects)} subjects with >=2 impressions available")
 
-    # ------------------------------------------------------------------
-    # 2. Pre-compute features for every image once (cached)
-    # ------------------------------------------------------------------
+   
+# 2. Pre-compute features for every image once (cached)
+   
     if use_altered_mode:
         all_images = list(real_by_finger.values())
         for paths in altered_by_finger.values():
@@ -322,9 +321,9 @@ def main() -> None:
                     get_biohash(p, token)
     print(f"  {len(projection_cache)} projection matrices, {len(biohash_cache)} BioHashes cached")
 
-    # ------------------------------------------------------------------
-    # 3. Generate genuine pairs
-    # ------------------------------------------------------------------
+   
+# 3. Generate genuine pairs
+   
     print("\nBuilding genuine pairs ...")
     genuine_scores: list[float] = []
 
@@ -348,9 +347,9 @@ def main() -> None:
     n_genuine = len(genuine_scores)
     print(f"  {n_genuine} genuine pairs")
 
-    # ------------------------------------------------------------------
-    # 4. Generate impostor pairs
-    # ------------------------------------------------------------------
+   
+# 4. Generate impostor pairs
+   
     print("Building impostor pairs ...")
     max_impostor = args.impostor_multiplier * n_genuine
     impostor_scores: list[float] = []
@@ -387,9 +386,9 @@ def main() -> None:
 
     print(f"  {len(impostor_scores)} impostor pairs")
 
-    # ------------------------------------------------------------------
-    # 5. Sweep thresholds → FAR / FRR
-    # ------------------------------------------------------------------
+   
+# 5. Sweep thresholds → FAR / FRR
+   
     print("\nSweeping thresholds ...")
     thresholds = np.arange(0.50, 1.001, 0.005)
     far, frr = compute_far_frr(genuine_scores, impostor_scores, thresholds)
@@ -400,9 +399,9 @@ def main() -> None:
     g_arr = np.array(genuine_scores)
     i_arr = np.array(impostor_scores)
 
-    # ------------------------------------------------------------------
+   
     # 6. Format and print results
-    # ------------------------------------------------------------------
+   
     sep = "=" * 62
     lines = [
         sep,
@@ -458,9 +457,9 @@ def main() -> None:
         fh.write(output + "\n")
     print(f"\nResults saved -> {args.output}")
 
-    # ------------------------------------------------------------------
+   
     # 7. Optional plots (--plot flag)
-    # ------------------------------------------------------------------
+   
     if args.plot:
         try:
             import matplotlib

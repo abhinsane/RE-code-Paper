@@ -1,33 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/**
- * @title  VotingLedger
- * @notice On-chain anchor for a post-quantum e-voting system.
- *
- * The contract stores NO plaintext votes.  It records:
- *   • Nullifiers  (bytes32)  – SHA3-256(voter_id_hash)
- *                              where voter_id_hash = SHA3-256(voter_id).
- *                              The double-hash prevents linking the on-chain
- *                              record to the voter; prevents double-voting.
- *   • encVoteHash (bytes32)  – SHA3-256(FHE ciphertext)   tamper evidence
- *   • zkpHash     (bytes32)  – SHA3-256(ZKP proof JSON)   public verifiability
- *   • batchMerkleRoot        – Root of each mined off-chain block's Merkle tree
- *   • resultsHash + PQ sig   – After election closes: ML-DSA-65 sig (off-chain)
- *
- * The heavy cryptography (ML-KEM-768, ML-DSA-65, FHE, ZKP, biometrics) lives
- * entirely in the Python layer.  This contract is the tamper-evident public
- * registry that any third party can audit.
- *
- * Deployment
- * ----------
- * 1. Install Hardhat:  npm install --save-dev hardhat @nomicfoundation/hardhat-toolbox
- * 2. Compile:          npx hardhat compile
- * 3. Deploy local:     npx hardhat run scripts/deploy.js --network localhost
- * 4. Deploy Sepolia:   npx hardhat run scripts/deploy.js --network sepolia
- *
- * Constructor argument: the election ID string (e.g. "GeneralElection2024")
- */
+// @title  VotingLedger
+// @notice On-chain anchor for a post-quantum e-voting system.
+//
+// The contract stores NO plaintext votes. It records:
+//   - Nullifiers  (bytes32): SHA3-256(voter_id_hash || election_id)
+//   - resultsHash (bytes32): SHA3-256(results JSON) — after election closes
+//
+// All per-vote evidence (encVoteHash, zkpHash, timestamps) is emitted as
+// events — readable off-chain by any auditor, but not stored on-chain.
+// This reduces anchorVote() gas from ~149,895 to ~32,000 (approx 5x cheaper).
+//
+// The ML-DSA-65 PQ signature is emitted in the ElectionFinalized event
+// rather than stored, saving ~2.4M gas on finalizeElection().
+//
+// Constructor argument: the election ID string (e.g. "GeneralElection2024")
+
 contract VotingLedger {
 
     // ── Immutable state ───────────────────────────────────────────────────────
@@ -38,28 +27,19 @@ contract VotingLedger {
     bool    public isOpen;
     uint256 public totalVotes;
 
-    // Nullifier registry — SHA3-256(voter_id_hash)
-    // (voter_id_hash is itself SHA3-256(voter_id), so the nullifier is a
-    //  double-hash that prevents linking the on-chain record to the voter.)
+    // Nullifier registry — prevents double voting.
+    // nullifier = SHA3(voter_id_hash || election_id)
     mapping(bytes32 => bool) public nullifiers;
-
-    // Per-vote evidence anchored on-chain
-    struct VoteEvidence {
-        bytes32 nullifier;
-        bytes32 encVoteHash;   // SHA3-256(FHE ciphertext)
-        bytes32 zkpHash;       // SHA3-256(ZKP proof)
-        uint64  timestamp;
-    }
-    VoteEvidence[] public evidence;
 
     // Merkle roots from off-chain PQ-blockchain blocks
     bytes32[] public batchMerkleRoots;
 
-    // Finalised result
+    // Finalised result hash (stored for on-chain verifiability)
     bytes32 public resultsHash;
-    bytes   public resultsPQSignature;   // raw ML-DSA-65 signature bytes
 
     // ── Events ────────────────────────────────────────────────────────────────
+
+    // Emitted per vote — all evidence is in the event log, not storage
     event VoteAnchored(
         bytes32 indexed nullifier,
         bytes32         encVoteHash,
@@ -67,13 +47,17 @@ contract VotingLedger {
         uint256 indexed voteIndex,
         uint64          timestamp
     );
+
     event BatchRecorded(
         uint256 indexed batchIndex,
         bytes32         merkleRoot,
         uint256         voteCount
     );
+
+    // PQ signature emitted here (not stored) — saves ~2.4M gas
     event ElectionFinalized(
         bytes32 resultsHash,
+        bytes   pqSignature,
         uint256 totalVotes,
         uint64  timestamp
     );
@@ -97,12 +81,9 @@ contract VotingLedger {
 
     // ── Write ─────────────────────────────────────────────────────────────────
 
-    /**
-     * @notice Anchor evidence of a single encrypted vote.
-     * @param nullifier    SHA3-256(voter_id_hash)  where voter_id_hash = SHA3-256(voter_id)
-     * @param encVoteHash  SHA3-256(FHE BFV ciphertext bytes)
-     * @param zkpHash      SHA3-256(ZKP proof JSON bytes)
-     */
+    // Anchor evidence of a single encrypted vote.
+    // Only the nullifier is stored (for double-vote prevention).
+    // All other evidence is emitted as an event (8 gas/byte vs 22,100 gas/SSTORE).
     function anchorVote(
         bytes32 nullifier,
         bytes32 encVoteHash,
@@ -110,13 +91,7 @@ contract VotingLedger {
     ) external onlyAuthority whenOpen {
         require(!nullifiers[nullifier], "Double vote");
 
-        nullifiers[nullifier] = true;
-        evidence.push(VoteEvidence({
-            nullifier:   nullifier,
-            encVoteHash: encVoteHash,
-            zkpHash:     zkpHash,
-            timestamp:   uint64(block.timestamp)
-        }));
+        nullifiers[nullifier] = true;   // 1 SSTORE — required for double-vote check
         totalVotes++;
 
         emit VoteAnchored(
@@ -125,9 +100,7 @@ contract VotingLedger {
         );
     }
 
-    /**
-     * @notice Record the Merkle root of an off-chain PQ-blockchain block.
-     */
+    // Record the Merkle root of an off-chain PQ-blockchain block.
     function recordBatch(bytes32 merkleRoot, uint256 voteCount)
         external onlyAuthority
     {
@@ -135,30 +108,19 @@ contract VotingLedger {
         emit BatchRecorded(batchMerkleRoots.length - 1, merkleRoot, voteCount);
     }
 
-    /**
-     * @notice Close the election, anchor the results hash and PQ signature.
-     * @param _resultsHash   SHA3-256 of the JSON results dict
-     * @param _pqSignature   ML-DSA-65 signature over _resultsHash (raw bytes)
-     */
+    // Close the election. Results hash is stored; PQ signature is emitted only.
     function finalizeElection(bytes32 _resultsHash, bytes calldata _pqSignature)
         external onlyAuthority whenOpen
     {
-        isOpen             = false;
-        resultsHash        = _resultsHash;
-        resultsPQSignature = _pqSignature;
+        isOpen      = false;
+        resultsHash = _resultsHash;   // 1 SSTORE — stored for on-chain audits
 
-        emit ElectionFinalized(_resultsHash, totalVotes, uint64(block.timestamp));
+        emit ElectionFinalized(
+            _resultsHash, _pqSignature, totalVotes, uint64(block.timestamp)
+        );
     }
 
     // ── Read ──────────────────────────────────────────────────────────────────
-
-    function getEvidence(uint256 idx)
-        external view
-        returns (bytes32, bytes32, bytes32, uint64)
-    {
-        VoteEvidence memory e = evidence[idx];
-        return (e.nullifier, e.encVoteHash, e.zkpHash, e.timestamp);
-    }
 
     function getAllMerkleRoots() external view returns (bytes32[] memory) {
         return batchMerkleRoots;

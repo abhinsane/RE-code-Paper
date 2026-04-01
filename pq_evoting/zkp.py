@@ -75,17 +75,10 @@ from .config import (
 )
 from .pq_crypto import sha3_256, shake256
 
-
-# ---------------
 # Module-level constants
-# ---------------
-
 _MAX_PROOF_ATTEMPTS = 50   # Rejection-sampling retry cap; (0.24)^50 ≈ 0 failure prob
 
 
-# ---------------
-# Helpers
-# ---------------
 
 def _matvec_mod(A: np.ndarray, v: np.ndarray, q: int) -> np.ndarray:
     """Column-wise modular matrix-vector product that avoids int64 overflow.
@@ -134,9 +127,7 @@ def _rng_from(seed_bytes: bytes) -> np.random.Generator:
     return np.random.default_rng(int.from_bytes(seed_bytes, "big"))
 
 
-# ---------------
 # Main class
-# ---------------
 
 class LatticeZKP:
     """
@@ -210,9 +201,8 @@ class LatticeZKP:
         self.e0 = np.zeros(n, dtype=np.int64)
         self.e0[0] = 1
 
-    # ------
     # Commitment  C = A·r + v·e₀  (mod q)
-    # ------
+   
 
     def _commit(self, v: int, r: np.ndarray) -> np.ndarray:
         # FIX: use _matvec_mod instead of self.A @ r.
@@ -221,10 +211,9 @@ class LatticeZKP:
         # every column, keeping intermediate sums in [0, q) safely.
         return (_matvec_mod(self.A, r, self.q) + int(v) * self.e0) % self.q
 
-    # ------
-    # Sigma protocol (two-component: proves knowledge of (v, r))
-    # ------
 
+# Sigma protocol (two-component: proves knowledge of (v, r))
+   
     def _sigma_prove(
         self,
         v: int,
@@ -301,9 +290,9 @@ class LatticeZKP:
         except Exception:
             return False
 
-    # ------
+   
     # Per-bit proof — CDS (Cramer-Damgård-Schoenmakers) 1-of-2 OR proof
-    # ------
+   
     #
     # Proves that C_bit commits to 0 OR to 1 without revealing which.
     # Both branches use rejection-sampled responses so their distributions
@@ -341,7 +330,7 @@ class LatticeZKP:
         # Adjusted targets: T_i = C_bit - i·e0
         T: list = [C_bit.copy(), (C_bit - self.e0) % self.q]
 
-        # ---- Simulated (fake) branch for index `other` ----------------
+         # Simulated (fake) branch for index `other`
         # z_fake is drawn from [-B, B]^m — same distribution as a real
         # rejection-sampled response, so the fake branch is indistinguishable.
         rng_sim = _rng_from(shake256(ctx + b":or_sim" + bytes([b]), 32))
@@ -352,7 +341,7 @@ class LatticeZKP:
         )
         w_fake  = (_matvec_mod(self.A, z_fake, self.q) - c_fake * T[other]) % self.q
 
-        # ---- Real branch: announcement + rejection sampling -----------
+        # Real branch: announcement + rejection sampling 
         w_arr: list = [None, None]
         w_arr[other] = w_fake
 
@@ -381,7 +370,7 @@ class LatticeZKP:
                 "This is astronomically unlikely — check parameter consistency."
             )
 
-        # ---- Arrange output in canonical branch order [0, 1] ---------
+         # Arrange output in canonical branch order [0, 1] 
         c_out: list = [None, None]
         z_out: list = [None, None]
         c_out[b]  = c_real
@@ -446,10 +435,8 @@ class LatticeZKP:
         except Exception:
             return False
 
-    # ------
-    # Public API — generate proof
-    # ------
-
+# Public API — generate proof
+   
     def prove_vote_range(
         self,
         vote: int,
@@ -478,7 +465,7 @@ class LatticeZKP:
 
         ctx = sha3_256(voter_id) + election_id + bio_commitment + ELECTION_DOMAIN
 
-        # ---- Binary decomposition ------------------------------------
+         # Binary decomposition
         bits_s = format(vote, f"0{self.n_bits}b")   # MSB first
 
         bit_commitments: List[list] = []
@@ -502,16 +489,16 @@ class LatticeZKP:
             weight  = 1 << (self.n_bits - 1 - i)
             r_main  = r_main + weight * r_bit   # integer sum — no mod q
 
-        # ---- Main commitment -----------------------------------------
+        # Main commitment 
         C_main = self._commit(vote, r_main)
 
-        # ---- Knowledge proof (uses _main_response_bound) -------------
+         # Knowledge proof (uses _main_response_bound) 
         main_proof = self._sigma_prove(
             vote, r_main, C_main, ctx + b":knowledge",
             response_bound=self._main_response_bound,
         )
 
-        # ---- Consistency hash ----------------------------------------
+        # Consistency hash 
         con_input = (
             C_main.tobytes()
             + b"".join(np.array(c, dtype=np.int64).tobytes() for c in bit_commitments)
@@ -529,9 +516,9 @@ class LatticeZKP:
             "voter_id_hash":    sha3_256(voter_id).hex(),
         }
 
-    # ------
-    # Public API — verify proof
-    # ------
+   
+# Public API — verify proof
+   
 
     def verify_vote_proof(
         self,
@@ -579,7 +566,7 @@ class LatticeZKP:
                 if not self._verify_bit(bproof, C_bit, ctx + f":bit{i}".encode()):
                     return False
 
-            # ---- Bit-sum check ------------------------------------------
+# Bit-sum check 
             # Verify C_main == ∑ 2^(n_bits-1-i) · C_bit_i  (mod q).
             # Because r_main = ∑ weight_i · r_bit_i (no mod), linearity gives
             # ∑ weight_i · C_bit_i = A·r_main + vote·e₀ = C_main (mod q).
@@ -606,10 +593,9 @@ class LatticeZKP:
         except Exception:
             return False
 
-    # ------
-    # Helper
-    # ------
-
+   
+# Helper
+   
     def commitment_bytes(self, proof: dict) -> bytes:
         """First 32 int64 elements of the main commitment as bytes."""
         arr = np.asarray(proof["commitment"][:32], dtype=np.int64)

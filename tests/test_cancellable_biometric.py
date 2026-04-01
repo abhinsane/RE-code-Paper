@@ -48,9 +48,9 @@ SNAPSHOT_DIR = Path(__file__).parent / "snapshots"
 SNAPSHOT_DIR.mkdir(exist_ok=True)
 
 
-# ---------------
+
 # Visualisation helper
-# ---------------
+
 
 def _save_fingerprint_figure(
     image_paths: list,
@@ -96,9 +96,9 @@ def _save_fingerprint_figure(
     print(f"\n  [snapshot] {out}")
 
 
-# ---------------
+
 # Revocability proof snapshot
-# ---------------
+
 
 def _save_revocability_proof(
     image_path: str,
@@ -254,9 +254,9 @@ def _save_revocability_proof(
     print(f"\n  [revocability proof] {out}")
 
 
-# ---------------
+
 # Fixtures
-# ---------------
+
 
 
 @pytest.fixture(scope="session")
@@ -290,18 +290,18 @@ TOKEN_A = b"token_version_1"
 TOKEN_B = b"token_version_2"
 
 
-# ---------------
+
 # Helper
-# ---------------
+
 
 
 def enroll(cb, fp, authority, token):
     return cb.enroll(fp, token, authority.kem_pk, authority.sig_sk)
 
 
-# ---------------
+
 # Biometric feature extraction (HOG — Histogram of Oriented Gradients)
-# ---------------
+
 
 
 class TestFeatureExtraction:
@@ -345,9 +345,9 @@ class TestFeatureExtraction:
             cb.extract_features("/nonexistent/path.bmp")
 
 
-# ---------------
+
 # BioHash (Biometric Hash) — binarised orthogonal projection
-# ---------------
+
 
 
 class TestBioHash:
@@ -414,9 +414,9 @@ class TestBioHash:
         )
 
 
-# ---------------
+
 # Enrolment — PQ-encrypted (ML-KEM-768) template storage
-# ---------------
+
 
 
 class TestEnrollment:
@@ -457,9 +457,9 @@ class TestEnrollment:
         assert e_a["template_hash"] != e_b["template_hash"]
 
 
-# ---------------
+
 # Verification — Hamming-distance comparison of decrypted BioHash templates
-# ---------------
+
 
 
 class TestVerification:
@@ -511,11 +511,11 @@ class TestVerification:
         assert 0.0 <= score <= 1.0
 
 
-# ---------------
+
 # Cancellation / Revocation
 # Cancellability: changing token makes old and new templates computationally
 # unlinkable — an attacker with the old template learns nothing about the new one.
-# ---------------
+
 
 
 class TestCancellation:
@@ -640,3 +640,106 @@ class TestCancellation:
             enrolled = new_enr
         is_match, score, _ = cb.verify(fingerprint_path, tokens[-1], authority.kem_sk, enrolled, authority_sig_pk=authority.sig_pk)
         assert is_match, f"Final token should verify after chained revocations (score={score:.3f})"
+
+
+
+# Voter-initiated revocation request flow
+
+
+class TestRevocationRequestFlow:
+    """
+    Tests for the high-level voter-self-service revocation API:
+      Voter.prepare_revocation_request()  →  ElectionAuthority.process_revocation_request()
+
+    These tests exercise the complete end-to-end flow that a voter would use
+    to revoke a compromised biometric template via the GUI or demo.py.
+    """
+
+    @pytest.fixture(scope="class")
+    def election_setup(self, fingerprint_path):
+        """
+        Spin up a minimal ElectionAuthority + one registered Voter.
+        Returns (authority, voter, voter_id, old_token, new_token, fp_path).
+        """
+        from pq_evoting import ElectionAuthority, ElectionConfig, Voter
+
+        config = ElectionConfig("test_revoc_election", ["A", "B", "C"])
+        authority = ElectionAuthority(config)
+
+        voter_id = "test_voter_revoc"
+        old_token = hashlib.sha3_256(b"old_pin").digest()
+        new_token = hashlib.sha3_256(b"new_pin").digest()
+
+        voter = Voter(voter_id, authority.public_params())
+        authority.register_voter(
+            voter_id,
+            voter.kem_pk,
+            voter.sig_pk,
+            fingerprint_path,
+            old_token,
+        )
+        return authority, voter, voter_id, old_token, new_token, fingerprint_path
+
+    def test_prepare_request_returns_dict(self, election_setup):
+        """prepare_revocation_request() must return a dict with required keys."""
+        authority, voter, voter_id, old_token, new_token, fp = election_setup
+        req = voter.prepare_revocation_request(fp, old_token, new_token, reason="test")
+        assert isinstance(req, dict)
+        for key in ("voter_id", "fingerprint_path", "old_token", "new_token",
+                    "new_token_hash", "reason", "ts", "signature"):
+            assert key in req, f"Missing key '{key}' in revocation request"
+
+    def test_prepare_request_voter_id_matches(self, election_setup):
+        """voter_id in the request must match the voter's actual ID."""
+        authority, voter, voter_id, old_token, new_token, fp = election_setup
+        req = voter.prepare_revocation_request(fp, old_token, new_token)
+        assert req["voter_id"] == voter_id
+
+    def test_process_request_succeeds(self, election_setup):
+        """A correctly signed revocation request must be accepted by the authority."""
+        authority, voter, voter_id, old_token, new_token, fp = election_setup
+        req = voter.prepare_revocation_request(fp, old_token, new_token, reason="unit test")
+        ok = authority.process_revocation_request(req)
+        assert ok is True, "process_revocation_request() should return True on success"
+
+    def test_new_token_valid_after_revocation(self, election_setup, cb):
+        """After revocation, the new token must authenticate the voter."""
+        authority, voter, voter_id, old_token, new_token, fp = election_setup
+        # Re-authenticate with new token via the authority's internal registry
+        reg = authority._registry.get(voter_id)
+        assert reg is not None and reg.is_active
+        is_match, score, _ = cb.verify(fp, new_token, authority._kp.kem_sk,
+                                        reg.enrolled_template,
+                                        authority_sig_pk=authority._kp.sig_pk)
+        assert is_match, f"New token should authenticate after revocation (score={score:.3f})"
+
+    def test_tampered_signature_rejected(self, election_setup):
+        """A request with a tampered signature must be rejected."""
+        authority, voter, voter_id, old_token, new_token, fp = election_setup
+        # Use a fresh token pair so we're not re-using the spent old_token
+        tok_a = hashlib.sha3_256(b"tamper_old").digest()
+        tok_b = hashlib.sha3_256(b"tamper_new").digest()
+
+        # Re-register with fresh tokens for this sub-test
+        config2 = __import__("pq_evoting").ElectionConfig("tamper_test", ["X", "Y"])
+        auth2   = __import__("pq_evoting").ElectionAuthority(config2)
+        v2_id   = "tamper_voter"
+        v2      = __import__("pq_evoting").Voter(v2_id, auth2.public_params())
+        auth2.register_voter(v2_id, v2.kem_pk, v2.sig_pk, fp, tok_a)
+
+        req = v2.prepare_revocation_request(fp, tok_a, tok_b, reason="tamper test")
+        # Corrupt the signature
+        sig_bytes = bytearray(bytes.fromhex(req["signature"]))
+        sig_bytes[0] ^= 0xFF
+        req["signature"] = sig_bytes.hex()
+
+        ok = auth2.process_revocation_request(req)
+        assert ok is False, "Tampered signature must be rejected"
+
+    def test_wrong_voter_id_rejected(self, election_setup):
+        """A request with an unregistered voter_id must be rejected."""
+        authority, voter, voter_id, old_token, new_token, fp = election_setup
+        req = voter.prepare_revocation_request(fp, old_token, new_token)
+        req["voter_id"] = "nonexistent_voter_xyz"
+        ok = authority.process_revocation_request(req)
+        assert ok is False, "Request for unregistered voter must be rejected"

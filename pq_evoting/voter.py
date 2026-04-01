@@ -6,7 +6,7 @@ information about a registered voter (no secret keys stored) and the
 :class:`VoterRegistry` that manages the roster.
 
 Improvements over the original in-memory implementation
----------------------------------------------------------
+-------
 * **SQLite persistence** – the registry is backed by a SQLite database
   (default: in-memory ``":memory:"``; pass a file path for durability across
   restarts).  Every mutation is immediately written through to the database.
@@ -35,9 +35,9 @@ from .config import AUTH_SESSION_TIMEOUT, BIO_LOCKOUT_SECONDS, BIO_MAX_AUTH_ATTE
 from .pq_crypto import sha3_256
 
 
-# ---------------
+
 # Voter registration record
-# ---------------
+
 
 @dataclass
 class VoterRegistration:
@@ -91,9 +91,9 @@ class VoterRegistration:
         }
 
 
-# ---------------
+
 # Voter registry — SQLite-backed, write-through in-memory cache
-# ---------------
+
 
 class VoterRegistry:
     """
@@ -109,9 +109,9 @@ class VoterRegistry:
               transient in-process database, or a file path for durability.
     """
 
-    # ------
-    # Construction & schema
-    # ------
+   
+# Construction & schema
+   
 
     def __init__(self, db_path: str = ":memory:") -> None:
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
@@ -158,9 +158,8 @@ class VoterRegistry:
             reg = self._row_to_reg(row)
             self._cache[reg.voter_id] = reg
 
-    # ------
-    # Serialisation helpers
-    # ------
+   
+# Serialisation helpers
 
     @staticmethod
     def _row_to_reg(row: sqlite3.Row) -> VoterRegistration:
@@ -204,10 +203,8 @@ class VoterRegistry:
             ),
         )
         self._conn.commit()
-
-    # ------
-    # Audit log
-    # ------
+ 
+# Audit log 
 
     def _log(self, voter_id: str, event: str) -> None:
         """Append a privacy-preserving audit event (stores first 16 hex chars of voter_id_hash)."""
@@ -226,10 +223,8 @@ class VoterRegistry:
         return [{"ts": r["ts"], "voter_id_prefix": r["voter_id_prefix"], "event": r["event"]}
                 for r in rows]
 
-    # ------
-    # Registration
-    # ------
-
+ # Registration
+   
     def register(self, reg: VoterRegistration) -> bool:
         """
         Add a voter to the registry.
@@ -286,9 +281,9 @@ class VoterRegistry:
         self._log(voter_id, event)
         return True
 
-    # ------
-    # Brute-force lockout
-    # ------
+   
+ # Brute-force lockout
+   
 
     def record_failed_auth(self, voter_id: str) -> bool:
         """
@@ -424,9 +419,7 @@ class VoterRegistry:
             self._log(voter_id, "vote_recorded")
             return True
 
-    # ------
-    # Session management
-    # ------
+ # Session management
 
     def sweep_expired_sessions(self) -> int:
         """
@@ -454,10 +447,8 @@ class VoterRegistry:
                     self._persist(reg)
                     count += 1
         return count
-
-    # ------
-    # Accessors
-    # ------
+  
+# Accessors 
 
     def is_registered(self, voter_id: str) -> bool:
         return voter_id in self._cache

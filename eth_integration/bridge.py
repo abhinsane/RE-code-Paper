@@ -46,16 +46,15 @@ try:
     # web3 >= 7.0
     from web3.middleware import SignAndSendRawMiddlewareBuilder as _SigMW
     def _inject_signing_middleware(w3: Web3, account) -> None:
-        w3.middleware_onion.inject(_SigMW.build(account), layer=0)
+        w3.middleware_onion.inject(_SigMW.build(account), layer=0) # type: ignore
 except ImportError:
     # web3 < 7.0
     from web3.middleware import construct_sign_and_send_raw_middleware as _build_mw  # type: ignore
     def _inject_signing_middleware(w3: Web3, account) -> None:  # type: ignore[misc]
         w3.middleware_onion.inject(_build_mw(account), layer=0)
 
-# ---------------
 # ABI  (matches VotingLedger.sol)
-# ---------------
+
 VOTING_LEDGER_ABI: List[Dict] = [
     # constructor
     {
@@ -154,6 +153,7 @@ VOTING_LEDGER_ABI: List[Dict] = [
         "type": "event", "name": "ElectionFinalized",
         "inputs": [
             {"name": "resultsHash", "type": "bytes32", "indexed": False},
+            {"name": "pqSignature", "type": "bytes",   "indexed": False},
             {"name": "totalVotes",  "type": "uint256", "indexed": False},
             {"name": "timestamp",   "type": "uint64",  "indexed": False},
         ],
@@ -161,10 +161,7 @@ VOTING_LEDGER_ABI: List[Dict] = [
     },
 ]
 
-
-# ---------------
 # Python-level contract emulation (in-memory EVM mode)
-# ---------------
 
 def _sha3(data: bytes) -> bytes:
     return hashlib.sha3_256(data).digest()
@@ -203,10 +200,8 @@ class _InMemoryVotingLedger:
         self._pq_sig_hex:   Optional[str]   = None
         self._events:       List[dict]      = []
 
-    # ------
-    # Transactions
-    # ------
-
+# Transactions
+   
     def anchor_vote(
         self, nullifier: str, enc_vote_hash: str, zkp_hash: str
     ) -> str:
@@ -279,10 +274,8 @@ class _InMemoryVotingLedger:
             },
         })
         return tx
-
-    # ------
-    # Reads
-    # ------
+   
+# Reads   
 
     @property
     def is_open(self) -> bool:
@@ -305,9 +298,7 @@ class _InMemoryVotingLedger:
         return list(self._evidence)
 
 
-# ---------------
 # Public bridge class
-# ---------------
 
 class EthBridge:
     """
@@ -354,9 +345,7 @@ class EthBridge:
         else:
             self._setup_inmemory()
 
-    # ------
-    # Backend setup
-    # ------
+    # Backend setup   
 
     def _setup_inmemory(self) -> None:
         """Start an in-memory eth_tester EVM and init the Python contract."""
@@ -433,9 +422,8 @@ class EthBridge:
             f"  Network  : {self.network_name}"
         )
 
-    # ------
-    # Transactions (both backends)
-    # ------
+  
+    # Transactions (both backends)   
 
     def anchor_vote(
         self,
@@ -467,7 +455,7 @@ class EthBridge:
                 nullifier_bytes, enc_vote_hash_bytes, zkp_hash_bytes
             ).transact({"from": self._account})
             receipt = self._w3.eth.wait_for_transaction_receipt(tx)
-            return receipt.transactionHash.hex()
+            return receipt.transactionHash.hex() # type: ignore
 
     def record_batch(self, merkle_root_hex: str, vote_count: int) -> str:
         """Record a Merkle root of a PQ-blockchain block."""
@@ -479,7 +467,7 @@ class EthBridge:
                 root_bytes, vote_count
             ).transact({"from": self._account})
             receipt = self._w3.eth.wait_for_transaction_receipt(tx)
-            return receipt.transactionHash.hex()
+            return receipt.transactionHash.hex() # type: ignore
 
     def finalize_election(
         self, results_hash_bytes: bytes, pq_signature_bytes: bytes
@@ -495,11 +483,11 @@ class EthBridge:
                 results_hash_bytes, pq_signature_bytes
             ).transact({"from": self._account})
             receipt = self._w3.eth.wait_for_transaction_receipt(tx)
-            return receipt.transactionHash.hex()
+            return receipt.transactionHash.hex() # type: ignore
 
-    # ------
+   
     # Reads
-    # ------
+   
 
     @property
     def is_open(self) -> bool:
@@ -528,19 +516,22 @@ class EthBridge:
         """Return all events emitted by the contract (in-memory mode)."""
         if self._mode == "in-memory":
             return self._contract.get_events()
-        # External: fetch via filter
+        # External: fetch via get_logs (create_filter not supported on public nodes)
         events = []
         for ev_name in ("VoteAnchored", "BatchRecorded", "ElectionFinalized"):
-            ev_filter = getattr(
-                self._sol_contract.events, ev_name
-            ).create_filter(fromBlock=0)
-            for log in ev_filter.get_all_entries():
-                events.append({
-                    "event":       ev_name,
-                    "txHash":      log.transactionHash.hex(),
-                    "blockNumber": log.blockNumber,
-                    "args":        dict(log.args),
-                })
+            try:
+                logs = getattr(
+                    self._sol_contract.events, ev_name
+                ).get_logs(fromBlock=0)
+                for log in logs:
+                    events.append({
+                        "event":       ev_name,
+                        "txHash":      log.transactionHash.hex(),
+                        "blockNumber": log.blockNumber,
+                        "args":        dict(log.args),
+                    })
+            except Exception:
+                pass
         return sorted(events, key=lambda e: e["blockNumber"])
 
     def get_evidence(self) -> List[dict]:

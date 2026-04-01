@@ -38,9 +38,7 @@ from pqcrypto.sign.ml_dsa_65 import (
 
 from .config import SYM_KEY_SIZE, SYM_NONCE_SIZE
 
-# ---------------
 # Hash helpers
-# ---------------
 
 def sha3_256(data: bytes) -> bytes:
     """SHA3-256 — quantum-safe collision-resistant hash."""
@@ -52,9 +50,7 @@ def shake256(data: bytes, length: int = 32) -> bytes:
     return hashlib.shake_256(data).digest(length)
 
 
-# ---------------
 # PQ Key-pair container
-# ---------------
 
 class PQKeyPair:
     """
@@ -71,9 +67,7 @@ class PQKeyPair:
         self.kem_pk, self.kem_sk = _kem_keygen()
         self.sig_pk, self.sig_sk = _sig_keygen()
 
-    # ------
-    # Serialisation helpers
-    # ------
+# Serialisation helpers  
 
     def public_dict(self) -> dict:
         """Return only the public keys (safe to share)."""
@@ -92,9 +86,7 @@ class PQKeyPair:
         }
 
 
-# ---------------
 # Hybrid encryption  (ML-KEM-768 + AES-256-GCM)
-# ---------------
 
 def pq_encrypt(recipient_kem_pk: bytes, plaintext: bytes) -> dict:
     """
@@ -155,9 +147,7 @@ def pq_decrypt(kem_sk: bytes, envelope: dict) -> bytes:
     return AESGCM(aes_key).decrypt(nonce, aes_ct, None)
 
 
-# ---------------
 # Digital signatures  (ML-DSA-65)
-# ---------------
 
 def pq_sign(sig_sk: bytes, message: bytes) -> bytes:
     """Sign *message* with *sig_sk* using ML-DSA-65."""
@@ -175,9 +165,7 @@ def pq_verify(sig_pk: bytes, message: bytes, signature: bytes) -> bool:
         return False
 
 
-# ---------------
 # Convenience wrappers
-# ---------------
 
 def pq_hash(data: bytes) -> bytes:
     """Quantum-safe SHA3-256 digest of *data*."""

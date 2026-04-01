@@ -40,15 +40,18 @@ def main():
     print("  POST-QUANTUM E-VOTING SYSTEM — BENCHMARKS")
     print("=" * 60)
 
-    # ----------------------------------------------------------------
+   
     # Setup (not timed)
-    # ----------------------------------------------------------------
+   
     print("\nInitialising components...")
     bio  = CancellableBiometric()
     zkp  = LatticeZKP(num_candidates=N_CANDIDATES)
     kp   = PQKeyPair()
     token = b"benchmark-user-token-32bytes!!!!"
-    feat  = np.random.rand(512).astype(np.float32)
+    # Feature vector must match the actual HOG output dimension (8100) so that
+    # the BioHash projection benchmark reflects the real pipeline.
+    # Previously used 512-dim random which under-estimated projection time.
+    feat  = np.random.rand(8100).astype(np.float32)
     msg   = b"vote-commitment-payload"
 
     print("  FHE authority init (slow — generates BFV context)...")
@@ -56,9 +59,9 @@ def main():
     voter = FHEVoter(auth.public_context_bytes(), num_candidates=N_CANDIDATES)
     print("  Done.\n")
 
-    # ----------------------------------------------------------------
+   
     # 1. Per-operation latency
-    # ----------------------------------------------------------------
+   
     print("Per-operation latency")
     print("-" * 60)
 
@@ -72,9 +75,9 @@ def main():
     zkpg_ms, pf  = bench("ZKP generate",                    lambda: zkp.prove_vote_range(1, VOTER_ID, ELECTION_ID), runs=10)
     zkpv_ms, _   = bench("ZKP verify",                      lambda: zkp.verify_vote_proof(pf, VOTER_ID, ELECTION_ID), runs=10)
 
-    # ----------------------------------------------------------------
+  
     # 2. End-to-end phase totals
-    # ----------------------------------------------------------------
+   
     enroll_ms = bio_ms + kgen_ms + enc_ms
     auth_ms   = bio_ms + dec_ms
     cast_ms   = fhe_ms + zkpg_ms + sign_ms
@@ -86,12 +89,12 @@ def main():
     print(f"  {'Authentication':<35} {auth_ms:8.1f} ms   (BioHash + KEM-dec)")
     print(f"  {'Vote casting':<35} {cast_ms:8.1f} ms   (FHE-enc + ZKP-gen + DSA-sign)")
 
-    # ----------------------------------------------------------------
+
     # 3. Scalability (estimated from shard model)
-    # ----------------------------------------------------------------
-    SHARD_SIZE = 800
+
+    from pq_evoting.config import FHE_SHARD_SIZE as SHARD_SIZE
     print()
-    print("Scalability estimates (ShardedFHETally, shard=800 votes)")
+    print(f"Scalability estimates (ShardedFHETally, shard={SHARD_SIZE} votes)")
     print("-" * 60)
     print(f"  {'N voters':<15} {'Enrollment (s)':<20} {'Shards':<10} {'Tally est.'}")
     print(f"  {'-'*55}")

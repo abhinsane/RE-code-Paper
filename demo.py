@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Post-Quantum E-Voting System — Full Demo
-=========================================
+======
 Demonstrates the complete election lifecycle using SOCOFing fingerprint
 images.
 
@@ -24,7 +24,8 @@ What happens
     ciphertexts homomorphically.
 6.  Election is finalised: the blockchain is verified, the FHE tally is
     decrypted once, and results are published with an ML-DSA-65 signature.
-7.  Template cancellation is demonstrated for one voter.
+7.  Voter-initiated template revocation is demonstrated:
+    voter.prepare_revocation_request() → authority.process_revocation_request().
 """
 
 from __future__ import annotations
@@ -35,9 +36,9 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-# ---------------------------------------------------------------------------
+
 # Ensure the package is importable when running from repo root
-# ---------------------------------------------------------------------------
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 from pq_evoting import (
@@ -49,9 +50,9 @@ from pq_evoting import (
 )
 
 
-# ---------------------------------------------------------------------------
+
 # Helpers
-# ---------------------------------------------------------------------------
+
 
 DIVIDER = "─" * 65
 
@@ -103,9 +104,9 @@ def _verify_result_signature(result: dict) -> bool:
     return pq_verify(sig_pk, payload, sig)
 
 
-# ---------------------------------------------------------------------------
+
 # Main demo
-# ---------------------------------------------------------------------------
+
 
 def run_demo(num_voters: int, dataset_path: str, show_chain: bool) -> None:
 
@@ -116,9 +117,9 @@ def run_demo(num_voters: int, dataset_path: str, show_chain: bool) -> None:
         "  Ledger    : SHA3-256 blockchain with ML-DSA-65 block signatures"
     )
 
-    # ------------------------------------------------------------------ #
-    #  0. Prepare fingerprint images                                       #
-    # ------------------------------------------------------------------ #
+
+#  0. Prepare fingerprint images     
+    
     samples = _prepare_fingerprints(dataset_path, num_voters)
     _run_election(samples, show_chain)
 
@@ -129,18 +130,18 @@ def _run_election(
 ) -> None:
     num_voters = len(samples)
 
-    # ------------------------------------------------------------------ #
-    #  1. Election Setup                                                    #
-    # ------------------------------------------------------------------ #
+    
+#  1. Election Setup                                                    #
+    
     _banner("Phase 1 · Election Setup")
     candidates = ["Alice", "Bob", "Carol"]
     config     = ElectionConfig("GeneralElection2024", candidates)
     authority  = ElectionAuthority(config)
     pub        = authority.public_params()
 
-    # ------------------------------------------------------------------ #
-    #  2. Voter Initialisation                                              #
-    # ------------------------------------------------------------------ #
+    
+#  2. Voter Initialisation   
+    
     _banner("Phase 2 · Voter Key Generation")
     subjects   = list(samples.keys())[:num_voters]
     voters: Dict[str, Voter]                      = {}
@@ -156,9 +157,9 @@ def _run_election(
         fp_paths[voter_id] = (img_list[0], img_list[min(1, len(img_list)-1)])
         tokens[voter_id]   = _make_token(subj)
 
-    # ------------------------------------------------------------------ #
-    #  3. Voter Registration                                                #
-    # ------------------------------------------------------------------ #
+    
+#  3. Voter Registration   
+    
     _banner("Phase 3 · Voter Registration (Cancellable Biometric Enrolment)")
     for voter_id, v in voters.items():
         enrol_path, _ = fp_paths[voter_id]
@@ -170,9 +171,9 @@ def _run_election(
             tokens[voter_id],
         )
 
-    # ------------------------------------------------------------------ #
-    #  4. Voting                                                            #
-    # ------------------------------------------------------------------ #
+
+#  4. Voting   
+    
     _banner("Phase 4 · Biometric Authentication + Encrypted Voting")
     import random
     rng     = random.Random(42)
@@ -194,17 +195,17 @@ def _run_election(
             print("  Skipping vote (auth failed).")
             continue
 
-        # Cast vote
-        ballot = v.cast_vote(candidate_idx)
+        # Cast vote (fingerprint + token bind biometric to ballot cryptographically)
+        ballot = v.cast_vote(candidate_idx, verify_path, tokens[voter_id])
         accepted = authority.receive_vote(ballot)
         status   = "✓ Accepted" if accepted else "✗ Rejected"
         print(
             f"  Vote for '{candidates[candidate_idx]}' : {status}"
         )
 
-    # ------------------------------------------------------------------ #
-    #  5. Finalisation                                                      #
-    # ------------------------------------------------------------------ #
+
+#  5. Finalisation  
+
     _banner("Phase 5 · Election Finalisation (FHE Decryption + Result Signing)")
     result = authority.finalize()
 
@@ -215,9 +216,9 @@ def _run_election(
         f"{'✓ VALID' if sig_ok else '✗ INVALID'}"
     )
 
-    # ------------------------------------------------------------------ #
-    #  6. Cross-check against plain choices                                #
-    # ------------------------------------------------------------------ #
+
+#  6. Cross-check against plain choices  
+
     _banner("Phase 6 · Cross-Check (expected vs reported)")
     expected: Dict[str, int] = {c: 0 for c in candidates}
     # Count from local choices for voters whose ballot was accepted
@@ -235,9 +236,9 @@ def _run_election(
 
     print(f"\n  Tally consistency: {'✓ MATCH' if all_match else '⚠ MISMATCH'}")
 
-    # ------------------------------------------------------------------ #
-    #  7. Blockchain statistics                                             #
-    # ------------------------------------------------------------------ #
+
+#  7. Blockchain statistics                                             
+
     _banner("Phase 7 · Blockchain & Chain Statistics")
     stats = authority.chain_stats()
     print(f"  Chain length  : {stats['chain_length']} blocks")
@@ -253,19 +254,25 @@ def _run_election(
                 f"votes={len(blk.votes)}  nonce={blk.nonce}"
             )
 
-    # ------------------------------------------------------------------ #
-    #  8. Template cancellation demo                                        #
-    # ------------------------------------------------------------------ #
-    _banner("Phase 8 · Cancellable Biometric Template Revocation Demo")
+
+#  8. Template cancellation demo (voter-initiated revocation flow)       
+
+    _banner("Phase 8 · Voter-Initiated Biometric Template Revocation Demo")
     demo_voter_id = list(voters.keys())[0]
     old_token     = tokens[demo_voter_id]
     new_token     = hashlib.sha3_256(b"new_pin_after_compromise").digest()
     enrol_path, _ = fp_paths[demo_voter_id]
 
     try:
-        ok = authority.cancel_voter_biometric(
-            demo_voter_id, enrol_path, old_token, new_token
+        voter_obj = voters[demo_voter_id]
+        # Step 1: Voter prepares a signed revocation request (ML-DSA-65)
+        request = voter_obj.prepare_revocation_request(
+            enrol_path, old_token, new_token, reason="demo: token rotation"
         )
+        print(f"[Demo] Revocation request signed by voter {demo_voter_id[:12]}… ✓")
+
+        # Step 2: Authority verifies signature + re-enrolls with new token
+        ok = authority.process_revocation_request(request)
         if ok:
             tokens[demo_voter_id] = new_token
             print(
@@ -274,20 +281,19 @@ def _run_election(
             )
             print(
                 "[Demo] Old biometric template is now cryptographically "
-                "unlinked from the new one."
+                "unlinked from the new one (Hamming distance ≈ 50%)."
             )
         else:
-            print(f"[Demo] Cancellation skipped: voter not found.")
+            print(f"[Demo] Revocation skipped: request validation failed.")
     except Exception as exc:
-        print(f"[Demo] Cancellation skipped: {exc}")
+        print(f"[Demo] Revocation skipped: {exc}")
 
     _banner("Demo Complete")
     print("  All phases completed successfully.\n")
 
 
-# ---------------------------------------------------------------------------
 # Entry point
-# ---------------------------------------------------------------------------
+
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(

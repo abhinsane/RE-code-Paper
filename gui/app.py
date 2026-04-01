@@ -18,12 +18,40 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import sys
 import tempfile
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Optional
+
+# ── Session timing logger ─────────────────────────────────────────────────────
+# Logs appear in the VS Code terminal where `streamlit run gui/app.py` was run.
+# Format: [TIMING] 14:32:07  register_voter         VOTER-001        312.4 ms
+_timing_log = logging.getLogger("pq_evoting.timing")
+if not _timing_log.handlers:
+    _handler = logging.StreamHandler(sys.stdout)
+    _handler.setFormatter(logging.Formatter(
+        fmt="[TIMING] %(asctime)s  %(message)s",
+        datefmt="%H:%M:%S",
+    ))
+    _timing_log.addHandler(_handler)
+    _timing_log.setLevel(logging.INFO)
+    _timing_log.propagate = False
+
+
+@contextmanager
+def _timed(operation: str, detail: str = ""):
+    """Context manager that prints operation latency to the VS Code terminal."""
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        ms = (time.perf_counter() - t0) * 1000
+        suffix = f"  [{detail}]" if detail else ""
+        _timing_log.info(f"  {operation:<35} {ms:>9.2f} ms{suffix}")
 
 import plotly.graph_objects as go
 import streamlit as st
@@ -205,7 +233,7 @@ with tab_setup:
             with st.form("setup_form"):
                 st.subheader("Election Configuration")
                 election_id = st.text_input(
-                    "Election ID", value="GeneralElection2024",
+                    "Election ID", value="GeneralElection2026",
                     help="Unique identifier embedded in every ZKP and signature."
                 )
                 raw_candidates = st.text_area(
@@ -235,6 +263,13 @@ with tab_setup:
                     "Deployed Contract Address (optional)",
                     placeholder="0x… — only needed with external RPC",
                 )
+                eth_private_key = st.text_input(
+                    "Wallet Private Key (optional)",
+                    placeholder="0x… — required when using external RPC",
+                    type="password",
+                    help="Your funded wallet's private key for signing transactions. "
+                         "Only needed with an external RPC URL. Never shared or stored.",
+                )
 
                 submitted = st.form_submit_button(
                     "🚀 Initialize Election", type="primary", use_container_width=True
@@ -249,13 +284,17 @@ with tab_setup:
                 else:
                     with st.spinner("Generating post-quantum keys and deploying contract…"):
                         try:
-                            config    = ElectionConfig(election_id.strip(), candidates)
-                            authority = ElectionAuthority(config)
-                            bridge    = EthBridge(
-                                election_id=election_id.strip(),
-                                rpc_url=eth_rpc.strip() or None,
-                                contract_address=eth_contract.strip() or None,
-                            )
+                            config = ElectionConfig(election_id.strip(), candidates)
+                            with _timed("ElectionAuthority init",
+                                        f"{len(candidates)} candidates"):
+                                authority = ElectionAuthority(config)
+                            with _timed("EthBridge deploy"):
+                                bridge = EthBridge(
+                                    election_id=election_id.strip(),
+                                    rpc_url=eth_rpc.strip() or None,
+                                    contract_address=eth_contract.strip() or None,
+                                    eth_private_key=eth_private_key.strip() or None,
+                                )
 
                             S.authority    = authority
                             S.eth_bridge   = bridge
@@ -389,13 +428,15 @@ with tab_reg:
                                 token = _token(voter_id, pin)
 
                                 # Register with authority (biometric enrolment)
-                                S.authority.register_voter(
-                                    voter_id,
-                                    voter.kem_pk,
-                                    voter.sig_pk,
-                                    enrol_path,
-                                    token,
-                                )
+                                with _timed("register_voter (bio enroll)",
+                                            voter_id):
+                                    S.authority.register_voter(
+                                        voter_id,
+                                        voter.kem_pk,
+                                        voter.sig_pk,
+                                        enrol_path,
+                                        token,
+                                    )
 
                                 S.voters[voter_id]       = voter
                                 S.voter_tokens[voter_id] = token
@@ -439,9 +480,9 @@ with tab_reg:
                 st.rerun()
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════
 # TAB 3 — VOTE
-# ═══════════════════════════════════════════════════════════════════════════════
+# ═══════════════
 
 with tab_vote:
     st.header("🗳️ Cast Your Vote")
@@ -507,9 +548,11 @@ with tab_vote:
 
                 with st.spinner("Running biometric verification…"):
                     try:
-                        ok, score = S.authority.authenticate(
-                            selected_voter, verify_path, token
-                        )
+                        with _timed("authenticate (bio verify)",
+                                    selected_voter):
+                            ok, score = S.authority.authenticate(
+                                selected_voter, verify_path, token
+                            )
                         S.auth_result = {
                             "voter_id":    selected_voter,
                             "ok":          ok,
@@ -596,12 +639,16 @@ with tab_vote:
                         if cast_btn:
                             with st.spinner("Encrypting vote and generating ZKP…"):
                                 try:
-                                    ballot   = S.voters[ar["voter_id"]].cast_vote(
-                                        candidate_idx,
-                                        ar["verify_path"],
-                                        ar["token"],
-                                    )
-                                    accepted = S.authority.receive_vote(ballot)
+                                    with _timed("cast_vote (FHE+ZKP+DSA-sign)",
+                                                ar["voter_id"]):
+                                        ballot = S.voters[ar["voter_id"]].cast_vote(
+                                            candidate_idx,
+                                            ar["verify_path"],
+                                            ar["token"],
+                                        )
+                                    with _timed("receive_vote (ZKP+DSA verify)",
+                                                ar["voter_id"]):
+                                        accepted = S.authority.receive_vote(ballot)
 
                                     if accepted:
                                         # Nullifier matches blockchain.py: SHA3(voter_id_hash)
@@ -620,9 +667,11 @@ with tab_vote:
                                                 ballot["zkp_proof"], sort_keys=True
                                             ).encode()
                                         )
-                                        tx = S.eth_bridge.anchor_vote(
-                                            nullifier_b, enc_hash_b, zkp_hash_b
-                                        )
+                                        with _timed("eth_bridge.anchor_vote",
+                                                    ar["voter_id"]):
+                                            tx = S.eth_bridge.anchor_vote(
+                                                nullifier_b, enc_hash_b, zkp_hash_b
+                                            )
                                         S.vote_log.append({
                                             "voter_id":       ar["voter_id"],
                                             "candidate":      choice_label,
@@ -665,7 +714,7 @@ with tab_vote:
                         st.markdown(
                             f'<div class="chain-block">'
                             f'<span style="color:{color};font-weight:bold">{tag}</span>'
-                            f' &nbsp; {entry["voter_id"]} → <b>{entry["candidate"]}</b>'
+                            f' &nbsp; {entry["voter_id"]}'
                             f' &nbsp; | BioHash: {entry.get("bio_score", 0):.3f}'
                             f'</div>',
                             unsafe_allow_html=True,
@@ -711,7 +760,8 @@ with tab_results:
         if S.phase == "closed" and S.results is None:
             with st.spinner("Decrypting FHE tally and signing results…"):
                 try:
-                    results = S.authority.finalize()
+                    with _timed("authority.finalize (FHE decrypt + sign)"):
+                        results = S.authority.finalize()
 
                     # Anchor results on Ethereum
                     res_bytes    = json.dumps(
@@ -723,13 +773,16 @@ with tab_results:
                     sig_bytes    = bytes.fromhex(results["authority_signature"])
 
                     # Mine PQ-blockchain batch first
-                    S.chain_stats = S.authority.chain_stats()
+                    with _timed("chain_stats / mine pending blocks"):
+                        S.chain_stats = S.authority.chain_stats()
 
                     # Anchor on Ethereum
-                    for blk in S.authority.chain_blocks()[1:]:
-                        S.eth_bridge.record_batch(blk.hash, len(blk.votes))
+                    with _timed("eth_bridge.record_batch (all blocks)"):
+                        for blk in S.authority.chain_blocks()[1:]:
+                            S.eth_bridge.record_batch(blk.hash, len(blk.votes))
 
-                    finalize_tx = S.eth_bridge.finalize_election(res_hash, sig_bytes)
+                    with _timed("eth_bridge.finalize_election"):
+                        finalize_tx = S.eth_bridge.finalize_election(res_hash, sig_bytes)
 
                     S.results    = results
                     S.finalize_tx = finalize_tx
@@ -905,9 +958,10 @@ with tab_chain:
                     with c2:
                         st.markdown(f"**Hash**: `{blk.hash}`")
                         st.markdown(f"**Merkle root**: `{blk.merkle_root[:32]}…`")
-                        sig_ok = blk.verify_signature(
-                            S.authority.authority_sig_pk
-                        )
+                        with _timed("blk.verify_signature (ML-DSA-65)", f"block #{blk.index}"):
+                            sig_ok = blk.verify_signature(
+                                S.authority.authority_sig_pk
+                            )
                         st.markdown(
                             f"**ML-DSA-65 sig**: {'✅ VALID' if sig_ok else '❌ INVALID'}"
                         )
@@ -1063,13 +1117,23 @@ with tab_revoke:
                     old_token = _token(rev_voter, old_pin)
                     new_token = _token(rev_voter, new_pin)
                     try:
-                        request = voter_obj.prepare_revocation_request(
-                            rev_fp_path, old_token, new_token, reason=rev_reason
-                        )
-                        ok = S.authority.process_revocation_request(request)
+                        with st.spinner(
+                            "Step 1/2 — Verifying biometric + signing revocation request "
+                            "(BioHash + KEM-dec + ML-DSA-65)…  this takes ~2–5 s"
+                        ):
+                            with _timed("prepare_revocation_request (DSA-sign)", rev_voter):
+                                request = voter_obj.prepare_revocation_request(
+                                    rev_fp_path, old_token, new_token, reason=rev_reason
+                                )
+                        with st.spinner(
+                            "Step 2/2 — Authority re-enrolling with new token "
+                            "(DSA-verify + BioHash + KEM-enc)…  this takes ~2–5 s"
+                        ):
+                            with _timed("process_revocation_request (bio+DSA verify)", rev_voter):
+                                ok = S.authority.process_revocation_request(request)
                         if ok:
                             st.success(
-                                "Template revoked and re-enrolled successfully. "
+                                "✅ Template revoked and re-enrolled successfully. "
                                 "Future authentication must use the new PIN."
                             )
                         else:

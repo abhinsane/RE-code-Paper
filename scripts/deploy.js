@@ -14,7 +14,7 @@
  *   npx hardhat run scripts/deploy.js --network sepolia
  *
  * Environment variables (place in a .env file at the repo root)
- * --------------------------------------------------------------
+ * ------------
  *   ETH_PRIVATE_KEY   – 0x-prefixed funded account private key
  *   INFURA_API_KEY    – Infura project ID (for Sepolia / mainnet)
  *   ELECTION_ID       – Election identifier string (default: "GeneralElection2024")

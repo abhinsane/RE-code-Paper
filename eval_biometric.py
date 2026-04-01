@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Biometric FAR/FRR Evaluation Script
-=====================================
+===
 Measures False Acceptance Rate (FAR), False Rejection Rate (FRR), and
 Equal Error Rate (EER) for the BioHashing pipeline.
 
@@ -32,9 +32,8 @@ from pq_evoting.cancellable_biometric import (
 )
 
 
-# ----
 # Helpers
-# ----
+
 def make_token(subject_id: str) -> bytes:
     """Deterministic per-subject token (simulates a hashed PIN)."""
     return hashlib.sha3_256(f"eval_token_{subject_id}".encode()).digest()
@@ -73,9 +72,7 @@ def far_at_frr_target(thresholds, far, frr, target_frr):
     return float(far[valid[0]])
 
 
-# ----
 # Synthetic data generator
-# ----
 
 def load_socofing_with_altered(
     dataset_path: str,
@@ -112,7 +109,7 @@ def load_socofing_with_altered(
 
     extensions = {".bmp", ".BMP", ".png", ".PNG", ".jpg", ".JPG"}
 
-    # --- Real images ---
+    # Real images 
     real_by_finger: dict[str, str] = {}
     finger_to_subject: dict[str, str] = {}
     seen_subjects: set[str] = set()
@@ -135,7 +132,7 @@ def load_socofing_with_altered(
         real_by_finger[finger_key]    = str(img_path)
         finger_to_subject[finger_key] = subj_id
 
-    # --- Altered images (recursive — handles Altered/Easy/, Altered/Medium/ etc.) ---
+    #  Altered images (recursive — handles Altered/Easy/, Altered/Medium/ etc.) 
     altered_by_finger: dict[str, list[str]] = {}
     for alt_dir in altered_dirs:
         for img_path in sorted(alt_dir.rglob("*")):
@@ -163,9 +160,10 @@ def load_socofing_with_altered(
     return real_by_finger, altered_by_finger, finger_to_subject
 
 
-# ------
+
 # Main evaluation
-# ------
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Evaluate biometric FAR/FRR/EER for the BioHashing pipeline"
@@ -184,12 +182,10 @@ def main() -> None:
 
     bio = CancellableBiometric()
 
-    # ------
-    # 1. Load fingerprint data
-    # -------
+   
+# 1. Load fingerprint data
    
     print("Loading fingerprint data ...")
-   
     # Tracks whether we're in Real+Altered mode (proper genuine pairs) or
     # legacy mode (multiple images per subject, cross-finger genuine pairs).
     use_altered_mode = False
@@ -220,9 +216,9 @@ def main() -> None:
         subjects = {k: v for k, v in subjects.items() if len(v) >= 2}
         print(f"  {len(subjects)} subjects with >=2 impressions available")
 
-    # -----
-    # 2. Pre-compute features for every image once (cached)
-    # -----
+   
+# 2. Pre-compute features for every image once (cached)
+   
     if use_altered_mode:
         all_images = list(real_by_finger.values())
         for paths in altered_by_finger.values():
@@ -242,7 +238,7 @@ def main() -> None:
         if i % 20 == 0 or i == len(all_images):
             print(f"  {i}/{len(all_images)} done")
 
-    # Cache projection matrices per token (QR decomp once per subject)
+# Cache projection matrices per token (QR decomp once per subject)
     projection_cache: dict[str, np.ndarray] = {}
 
     def get_projection(token: bytes) -> np.ndarray:
@@ -270,7 +266,7 @@ def main() -> None:
         n = min(len(ha), len(hb))
         return 1.0 - int(np.sum(ha[:n] != hb[:n])) / n
 
-    # Pre-warm projection + biohash cache for all subject tokens
+# Pre-warm projection + biohash cache for all subject tokens
     print("Pre-computing projection matrices and BioHashes ...")
     if use_altered_mode:
         unique_subjects = set(finger_to_subject.values())
@@ -289,11 +285,11 @@ def main() -> None:
                     get_biohash(p, token)
     print(f"  {len(projection_cache)} projection matrices, {len(biohash_cache)} BioHashes cached")
 
-    # -------
-    # 3. Generate genuine pairs
+   
+# 3. Generate genuine pairs
     #    Altered mode : Real[finger] vs Altered[finger]  (same finger, same subject)
     #    Legacy mode  : different images of same subject (cross-finger, less ideal)
-    # -------
+   
     print("\nBuilding genuine pairs ...")
     genuine_scores: list[float] = []
 
@@ -317,9 +313,9 @@ def main() -> None:
     n_genuine = len(genuine_scores)
     print(f"  {n_genuine} genuine pairs")
 
-    # ------------------------------------------------------------------
-    # 4. Generate impostor pairs (subject B's finger, subject A's token)
-    # ------------------------------------------------------------------
+   
+# 4. Generate impostor pairs (subject B's finger, subject A's token)
+   
     print("Building impostor pairs ...")
     max_impostor = args.impostor_multiplier * n_genuine
     impostor_scores: list[float] = []
@@ -356,9 +352,10 @@ def main() -> None:
 
     print(f"  {len(impostor_scores)} impostor pairs")
 
-    # --------
-    # 4. Sweep thresholds → FAR / FRR
-    # -------
+   
+# 4. Sweep thresholds → FAR / FRR
+   
+    print("\nSweeping thresholds …")
     thresholds = np.arange(0.50, 1.001, 0.005)
     far, frr = compute_far_frr(genuine_scores, impostor_scores, thresholds)
 
@@ -368,9 +365,9 @@ def main() -> None:
     g_arr = np.array(genuine_scores)
     i_arr = np.array(impostor_scores)
 
-    # -------
+   
     # 5. Format and print results
-    # -------
+   
     sep = "=" * 62
     lines = [
         sep,
@@ -426,9 +423,9 @@ def main() -> None:
         fh.write(output + "\n")
     print(f"\nResults saved -> {args.output}")
 
-    # ------------
-    # 6. Optional plots (requires matplotlib)
-    # -------
+   
+# 6. Optional plots (requires matplotlib)
+   
     if args.plot:
         try:
             import matplotlib

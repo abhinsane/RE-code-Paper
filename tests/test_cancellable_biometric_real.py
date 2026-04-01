@@ -51,9 +51,9 @@ import pytest
 from pq_evoting.cancellable_biometric import CancellableBiometric
 from pq_evoting.pq_crypto import PQKeyPair
 
-# ---------------
+
 # Dataset discovery — skip entire module if SOCOFing is absent
-# ---------------
+
 
 SOCOFING_DIR = Path(__file__).parent.parent / "SOCOFing" / "Real"
 
@@ -78,9 +78,9 @@ SUBJECT_A = "100"
 SUBJECT_B = "101"
 
 
-# ---------------
+
 # Visualisation helper
-# ---------------
+
 
 def _save_revocability_proof(
     image_path: str,
@@ -272,9 +272,9 @@ def _save_fingerprint_figure(
     print(f"\n  [snapshot] {out}")
 
 
-# ---------------
+
 # Fixtures
-# ---------------
+
 
 
 @pytest.fixture(scope="module")
@@ -310,9 +310,9 @@ TOKEN_A = b"real_token_v1"
 TOKEN_B = b"real_token_v2"
 
 
-# ---------------
+
 # Feature extraction using Gabor + HOG (Histogram of Oriented Gradients)
-# ---------------
+
 
 
 class TestRealFeatureExtraction:
@@ -365,10 +365,10 @@ class TestRealFeatureExtraction:
         assert not np.array_equal(f1, f2)
 
 
-# ---------------
+
 # Genuine match — same finger enrolled and probed with same token
 # BIO_MATCH_THRESHOLD = 0.818 (from config.py)
-# ---------------
+
 
 
 class TestRealGenuineMatch:
@@ -400,10 +400,10 @@ class TestRealGenuineMatch:
         assert 0.0 <= score <= 1.0
 
 
-# ---------------
+
 # Impostor rejection — different subject tries to authenticate
 # FAR (False Acceptance Rate) must be 0 for this pair
-# ---------------
+
 
 
 class TestRealImpostorRejection:
@@ -444,13 +444,13 @@ class TestRealImpostorRejection:
         assert score == 0.0
 
 
-# ---------------
+
 # Cancellability — token revocation on real SOCOFing fingerprints
 #
 # Cancellability property: changing the token changes the QR-decomposed
 # orthogonal projection matrix, producing a new BioHash that is statistically
 # independent of the old one (Hamming similarity ≈ 0.5 between old and new).
-# ---------------
+
 
 
 class TestRealCancellability:

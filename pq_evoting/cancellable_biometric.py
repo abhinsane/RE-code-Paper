@@ -20,7 +20,7 @@ Implements **BioHashing** for fingerprint template protection:
    enrolled.  Old templates are revoked and cannot be linked to new ones.
 
 SOCOFing Dataset (Sokoto Coventry Fingerprint Dataset)
-------------------------------------------------------
+----
 Images are stored as: SOCOFing/Real/{ID}_{Hand}_{Finger}.BMP
 e.g. ``1__M_Left_index_finger.BMP``
 Subjects 1–600 with up to 10 fingers per subject.
@@ -39,9 +39,7 @@ import numpy as np
 from .config import BIO_FEATURE_DIM, BIO_MATCH_THRESHOLD
 from .pq_crypto import pq_encrypt, pq_decrypt, pq_sign, pq_verify, shake256
 
-# ---------------
 # Internal helpers
-# ---------------
 
 def _template_sign_payload(encrypted_template: dict, token_hash: str) -> bytes:
     """
@@ -78,9 +76,7 @@ def _token_to_seed(user_token: bytes) -> int:
     return int.from_bytes(seed_bytes, "big")
 
 
-# ---------------
 # Main class
-# ---------------
 
 class CancellableBiometric:
     """
@@ -121,10 +117,8 @@ class CancellableBiometric:
             _cellSize=(16, 16),
             _nbins=9,
         )
-
-    # ------
-    # Feature extraction
-    # ------
+ 
+ # Feature extraction   
 
     def extract_features(self, image_path: str) -> np.ndarray:
         """
@@ -190,9 +184,7 @@ class CancellableBiometric:
         norm = np.linalg.norm(feat)
         return feat / norm if norm > 1e-9 else feat
 
-    # ------
-    # BioHashing
-    # ------
+# BioHashing
 
     def _projection_matrix(self, user_token: bytes) -> np.ndarray:
         """
@@ -239,9 +231,7 @@ class CancellableBiometric:
         projected = P @ f
         return (projected > np.median(projected)).astype(np.uint8)
 
-    # ------
-    # Enrolment
-    # ------
+# Enrolment   
 
     def enroll(
         self,
@@ -300,11 +290,8 @@ class CancellableBiometric:
             "token_hash":         token_hash,
             "template_sig":       template_sig.hex(),
             "feature_dim":        self.feature_dim,
-        }
-
-    # ------
-    # Verification
-    # ------
+        }   
+# Verification   
 
     def compute_bio_commitment(self, image_path: str, user_token: bytes) -> bytes:
         """
@@ -400,9 +387,9 @@ class CancellableBiometric:
 
         return similarity >= BIO_MATCH_THRESHOLD, float(similarity), bio_commitment
 
-    # ------
-    # Template cancellation
-    # ------
+   
+ # Template cancellation
+   
 
     def cancel_and_reenroll(
         self,
@@ -438,9 +425,7 @@ class CancellableBiometric:
         return self.enroll(image_path, new_token, authority_kem_pk, authority_sig_sk)
 
 
-# ----------
 # Test helper
-# ----------
 
 def create_synthetic_fingerprint(output_path: str, seed: int = 42) -> None:
     """
@@ -466,10 +451,7 @@ def create_synthetic_fingerprint(output_path: str, seed: int = 42) -> None:
     cv2.imwrite(output_path, ridges)
 
 
-# ---------------
-# ---------------
 # Dataset loader
-# ---------------
 
 def load_socofing_samples(
     dataset_path: str,

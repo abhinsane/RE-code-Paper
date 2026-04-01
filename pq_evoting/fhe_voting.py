@@ -38,9 +38,7 @@ import tenseal as ts
 from .config import FHE_PLAIN_MODULUS, FHE_POLY_MOD_DEGREE, FHE_SHARD_SIZE
 
 
-# ---------------
 # Authority side
-# ---------------
 
 class FHEAuthority:
     """
@@ -72,9 +70,7 @@ class FHEAuthority:
         ctx_pub.make_context_public()
         self._pub_ctx_bytes: bytes = ctx_pub.serialize()
 
-    # ------
-    # Context export
-    # ------
+# Context export   
 
     def public_context_bytes(self) -> bytes:
         """Return the serialised public BFV context (shareable with voters)."""
@@ -84,9 +80,9 @@ class FHEAuthority:
         """Return the serialised full context including the secret key."""
         return self._full_ctx_bytes
 
-    # ------
-    # Decryption (authority-only operations)
-    # ------
+   
+ # Decryption (authority-only operations)
+   
 
     def decrypt_tally(self, encrypted_tally_bytes: bytes) -> List[int]:
         """
@@ -146,10 +142,7 @@ class FHEAuthority:
 
         return ones[0]
 
-
-# ---------------
 # Voter side
-# ---------------
 
 class FHEVoter:
     """
@@ -191,9 +184,7 @@ class FHEVoter:
         return enc.serialize()
 
 
-# ---------------
 # Tallier (homomorphic accumulation)
-# ---------------
 
 class FHETally:
     """
@@ -220,7 +211,7 @@ class FHETally:
         Homomorphically add one encrypted vote to the running tally.
 
         Parameters
-        ----------
+        ----
         encrypted_vote_bytes : Output of :meth:`FHEVoter.encrypt_vote`.
         """
         enc = ts.bfv_vector_from(self._ctx, encrypted_vote_bytes)
@@ -277,9 +268,7 @@ class FHETally:
         return self._vote_count
 
 
-# ---------------
 # Sharded tallier — unlimited vote scale
-# ---------------
 
 class ShardedFHETally:
     """

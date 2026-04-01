@@ -41,9 +41,8 @@ from typing import List, Optional
 from .pq_crypto import pq_sign, pq_verify, sha3_256
 
 
-# ---------------
+
 # Data classes
-# ---------------
 
 @dataclass
 class VoteRecord:
@@ -116,10 +115,9 @@ class Block:
     hash:    str = ""
     authority_signature: str = ""
 
-    # ------
-    # Merkle tree
-    # ------
 
+    # Merkle tree
+ 
     def compute_merkle_root(self) -> str:
         """SHA3-256 Merkle root of all vote records.
 
@@ -148,10 +146,8 @@ class Block:
             ]
 
         return layer[0].hex()
-
-    # ------
+ 
     # Block hash
-    # ------
 
     def _header_bytes(self) -> bytes:
         """Canonical header bytes for hashing (must be deterministic)."""
@@ -166,10 +162,8 @@ class Block:
 
     def compute_hash(self) -> str:
         return sha3_256(self._header_bytes()).hex()
-
-    # ------
+ 
     # Proof-of-Work
-    # ------
 
     def mine(self, difficulty: int) -> None:
         """
@@ -185,9 +179,7 @@ class Block:
                 return
             self.nonce += 1
 
-    # ------
-    # ML-DSA signature
-    # ------
+    # ML-DSA signature   
 
     def sign(self, authority_sig_sk: bytes) -> None:
         """Sign (hash ‖ merkle_root) with the authority's ML-DSA-65 key."""
@@ -203,9 +195,7 @@ class Block:
         sig  = bytes.fromhex(self.authority_signature)
         return pq_verify(authority_sig_pk, payload, sig)
 
-    # ------
-    # Serialisation
-    # ------
+    # Serialisation   
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -213,9 +203,7 @@ class Block:
         return d
 
 
-# ---------------
 # Blockchain
-# ---------------
 
 class VotingBlockchain:
     """
@@ -245,10 +233,7 @@ class VotingBlockchain:
         self._nullifiers:  set  = set()
 
         self._create_genesis()
-
-    # ------
-    # Genesis block
-    # ------
+# Genesis block   
 
     def _create_genesis(self) -> None:
         genesis = Block(
@@ -262,9 +247,7 @@ class VotingBlockchain:
         genesis.sign(self._sk)
         self.chain.append(genesis)
 
-    # ------
-    # Vote ingestion
-    # ------
+    # Vote ingestion 
 
     def add_vote(self, record: VoteRecord) -> bool:
         """
@@ -288,10 +271,8 @@ class VotingBlockchain:
         self._nullifiers.add(nullifier)
         self.pending_votes.append(record)
         return True
-
-    # ------
-    # Block mining
-    # ------
+   
+# Block mining   
 
     def mine_pending_votes(self) -> Optional[Block]:
         """
@@ -316,10 +297,8 @@ class VotingBlockchain:
         self.chain.append(block)
         self.pending_votes.clear()
         return block
-
-    # ------
-    # Chain verification
-    # ------
+   
+# Chain verification   
 
     def verify_chain(self) -> bool:
         """
@@ -391,9 +370,7 @@ class VotingBlockchain:
 
         return True
 
-    # ------
-    # Accessors
-    # ------
+# Accessors  
 
     def all_votes(self) -> List[VoteRecord]:
         """Return every vote record committed on-chain (genesis excluded)."""
